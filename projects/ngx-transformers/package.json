@@ -1,6 +1,6 @@
 {
   "name": "ngx-transformers",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Run Hugging Face Transformers.js models in Angular - on-device ML with a signals API: text classification, embeddings, semantic search, Whisper speech-to-text. No server, no API key.",
   "keywords": [
     "angular",
