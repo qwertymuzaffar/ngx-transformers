@@ -33,5 +33,12 @@
   "dependencies": {
     "tslib": "^2.3.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "directory": "../../dist/ngx-transformers"
+  },
+  "scripts": {
+    "prepublishOnly": "node -e \"console.error('ngx-transformers is published from dist/ngx-transformers (npm run release does this). Refusing to publish the sources.');process.exit(1)\""
+  }
 }
