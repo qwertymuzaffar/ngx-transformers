@@ -45,3 +45,30 @@ export interface RankedResult {
   /** Index of the document in the input list. */
   index: number;
 }
+
+/** One timestamped segment of a transcription. */
+export interface TranscriptionChunk {
+  text: string;
+  /** Seconds from the start of the audio; null when the model omits it. */
+  start: number | null;
+  end: number | null;
+}
+
+export interface Transcription {
+  text: string;
+  /** Present when transcribe() was called with returnTimestamps. */
+  chunks?: TranscriptionChunk[];
+}
+
+export interface TranscribeOptions {
+  /** true for segment timestamps, 'word' for word-level. */
+  returnTimestamps?: boolean | 'word';
+  /** Split audio longer than ~30 s into chunks of this many seconds. */
+  chunkLengthS?: number;
+  /** Overlap between chunks, in seconds. */
+  strideLengthS?: number;
+  /** Source language (multilingual Whisper checkpoints only). */
+  language?: string;
+  /** 'transcribe' (default) or 'translate' (multilingual checkpoints only). */
+  task?: 'transcribe' | 'translate';
+}

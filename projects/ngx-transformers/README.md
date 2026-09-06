@@ -4,7 +4,7 @@
 [![CI](https://github.com/qwertymuzaffar/ngx-transformers/actions/workflows/ci.yml/badge.svg)](https://github.com/qwertymuzaffar/ngx-transformers/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Run Hugging Face [Transformers.js](https://github.com/huggingface/transformers.js) models in Angular - **on-device ML with a signals API**. Text classification, sentence embeddings, and semantic search that execute entirely in the browser: no server, no API key, works offline once the model is cached.
+Run Hugging Face [Transformers.js](https://github.com/huggingface/transformers.js) models in Angular - **on-device ML with a signals API**. Text classification, sentence embeddings, semantic search, and Whisper speech-to-text that execute entirely in the browser: no server, no API key, works offline once the model is cached.
 
 **[Live demo (Storybook)](https://qwertymuzaffar.github.io/ngx-transformers/)** - loads real models in your browser.
 
@@ -62,6 +62,34 @@ const score = await this.embedder.similarity('car', 'automobile'); // ~0.8
 const vectors = await this.embedder.embed(['one', 'two']); // number[][]
 ```
 
+## Speech to text (v0.2)
+
+Whisper, fully in the browser - the audio never leaves the device:
+
+```ts
+import { createMicRecorder, createSpeechRecognizer } from 'ngx-transformers';
+
+readonly whisper = createSpeechRecognizer(); // whisper-tiny.en, ~41 MB q4
+readonly mic = createMicRecorder();
+
+// a URL, File/Blob, ArrayBuffer, or 16 kHz Float32Array:
+const { text, chunks } = await this.whisper.transcribe(fileOrUrl, { returnTimestamps: true });
+
+// dictation:
+async toggle() {
+  if (this.mic.recording()) {
+    const audio = await this.mic.stop();            // encoded Blob
+    const { text } = await this.whisper.transcribe(audio); // decoded + resampled for you
+  } else {
+    await this.mic.start();                          // asks for mic permission
+  }
+}
+```
+
+`MicRecorder` exposes `recording`, `seconds`, and `error` signals for the UI. `decodeAudio(blob)` is exported separately if you want the 16 kHz mono `Float32Array` yourself.
+
+> Note: the recognizer defaults to `dtype: 'q4'` - q8 Whisper decoders currently fail on the v4 WASM runtime ([transformers.js#1707](https://github.com/huggingface/transformers.js/issues/1707)). Multilingual checkpoints (e.g. `onnx-community/whisper-tiny`) accept `language` and `task: 'translate'` options.
+
 ## Any pipeline
 
 `createPipeline()` exposes the full Transformers.js task surface with the same signal lifecycle:
@@ -98,7 +126,9 @@ Per-pipeline `device`/`dtype`/`options` win over the global config.
 | `createPipeline(request)` | Generic `PipelineHandle` for any Transformers.js task |
 | `createTextClassifier(options?)` | `TextClassifier` - sentiment/classification, `classify(text, topK?)` |
 | `createTextEmbedder(options?)` | `TextEmbedder` - `embed()`, `similarity()`, `rank()` |
-| `cosineSimilarity(a, b)` | Standalone vector math helper |
+| `createSpeechRecognizer(options?)` | `SpeechRecognizer` - `transcribe(audio, options?)` with timestamps |
+| `createMicRecorder(deps?)` | `MicRecorder` - mic capture with `recording`/`seconds`/`error` signals |
+| `cosineSimilarity(a, b)` / `decodeAudio(blob)` | Standalone helpers |
 
 All `create*` functions must run in an injection context (field initializer, constructor, or `runInInjectionContext`); handles are disposed with the surrounding component.
 
@@ -121,6 +151,7 @@ Status line + download bar for any handle. Inputs: `status` (required), `progres
 |---|---|---|---|
 | `createTextClassifier` | [Xenova/distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/Xenova/distilbert-base-uncased-finetuned-sst-2-english) | ~65 MB | Apache-2.0 |
 | `createTextEmbedder` | [Xenova/all-MiniLM-L6-v2](https://huggingface.co/Xenova/all-MiniLM-L6-v2) | ~23 MB | Apache-2.0 |
+| `createSpeechRecognizer` | [onnx-community/whisper-tiny.en](https://huggingface.co/onnx-community/whisper-tiny.en) | ~41 MB (q4) | Apache-2.0 |
 
 Swap any compatible checkpoint via `{ model: '...' }`. Check the license of the model you ship.
 
@@ -130,7 +161,6 @@ Model loading is browser-only (WASM/WebGPU). Creating handles is safe on the ser
 
 ## Roadmap
 
-- v0.2: speech-to-text (`createSpeechRecognizer`, Whisper) with mic capture helpers
 - Zero-shot classification and translation wrappers
 - WebGPU feature-detection helper
 

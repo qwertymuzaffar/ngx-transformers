@@ -1,7 +1,7 @@
 {
   "name": "ngx-transformers",
-  "version": "0.1.1",
-  "description": "Run Hugging Face Transformers.js models in Angular - on-device ML with a signals API: text classification, embeddings, semantic similarity. No server, no API key.",
+  "version": "0.2.0",
+  "description": "Run Hugging Face Transformers.js models in Angular - on-device ML with a signals API: text classification, embeddings, semantic search, Whisper speech-to-text. No server, no API key.",
   "keywords": [
     "angular",
     "transformers",
@@ -14,7 +14,10 @@
     "embeddings",
     "sentiment-analysis",
     "on-device",
-    "signals"
+    "signals",
+    "whisper",
+    "speech-to-text",
+    "speech-recognition"
   ],
   "license": "MIT",
   "author": "Muzaffar Qosimov",

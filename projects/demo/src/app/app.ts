@@ -3,6 +3,9 @@ import {
   ClassificationResult,
   ModelProgressComponent,
   RankedResult,
+  Transcription,
+  createMicRecorder,
+  createSpeechRecognizer,
   createTextClassifier,
   createTextEmbedder,
 } from 'ngx-transformers';
@@ -70,6 +73,27 @@ import {
           }
         </ul>
       </section>
+
+      <section class="card">
+        <h2>Speech to text</h2>
+        <p class="sub">Whisper tiny.en - ~41 MB once, then cached; audio never leaves the browser</p>
+        <audio controls [src]="sampleUrl"></audio>
+        <div class="row">
+          <button (click)="transcribeSample()" [disabled]="whisper.busy()">
+            {{ whisper.ready() ? 'Transcribe sample' : 'Load Whisper & transcribe' }}
+          </button>
+          <button [class.rec]="mic.recording()" (click)="toggleDictation()" [disabled]="whisper.busy()">
+            {{ mic.recording() ? 'Stop (' + mic.seconds() + 's)' : 'Dictate' }}
+          </button>
+        </div>
+        <ngx-model-progress [status]="whisper.status()" [progress]="whisper.progress()" />
+        @if (mic.error()) {
+          <p class="err">Microphone unavailable: {{ mic.error() }}</p>
+        }
+        @if (transcript(); as t) {
+          <blockquote class="transcript">{{ t.text || '(nothing recognized)' }}</blockquote>
+        }
+      </section>
     </main>
   `,
   styles: `
@@ -95,14 +119,22 @@ import {
     .docs { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
     .docs li { font-size: 13px; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; padding: 8px 11px; display: flex; align-items: center; gap: 9px; }
     .chip { font-family: ui-monospace, monospace; font-size: 11.5px; font-weight: 600; background: #fef3c7; color: #92400e; border-radius: 7px; padding: 2px 7px; flex: none; }
+    audio { width: 100%; margin-bottom: 4px; }
+    button.rec { background: #dc2626; }
+    .transcript { margin: 10px 0 0; font-size: 14px; border-left: 3px solid #f59e0b; padding: 8px 12px; background: #fffbeb; border-radius: 0 9px 9px 0; }
+    .err { font-size: 12.5px; color: #b91c1c; margin: 8px 0 0; }
   `,
 })
 export class App {
   readonly classifier = createTextClassifier();
   readonly embedder = createTextEmbedder();
+  readonly whisper = createSpeechRecognizer();
+  readonly mic = createMicRecorder();
 
   readonly sentiment = signal<ClassificationResult | null>(null);
   readonly results = signal<{ text: string; score: number | null }[] | null>(null);
+  readonly transcript = signal<Transcription | null>(null);
+  readonly sampleUrl = 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav';
 
   readonly documents = [
     'Enable OnPush change detection and lazy-load feature routes.',
@@ -127,5 +159,20 @@ export class App {
     if (!query.trim()) return;
     const ranked: RankedResult[] = await this.embedder.rank(query, this.documents);
     this.results.set(ranked.map(({ text, score }) => ({ text, score })));
+  }
+
+  async transcribeSample(): Promise<void> {
+    this.transcript.set(null);
+    this.transcript.set(await this.whisper.transcribe(this.sampleUrl));
+  }
+
+  async toggleDictation(): Promise<void> {
+    if (this.mic.recording()) {
+      const audio = await this.mic.stop();
+      this.transcript.set(null);
+      this.transcript.set(await this.whisper.transcribe(audio));
+    } else {
+      await this.mic.start();
+    }
   }
 }
