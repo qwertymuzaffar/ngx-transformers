@@ -1,0 +1,34 @@
+{
+  "name": "ngx-transformers",
+  "version": "0.1.0",
+  "description": "Run Hugging Face Transformers.js models in Angular - on-device ML with a signals API: text classification, embeddings, semantic similarity. No server, no API key.",
+  "keywords": [
+    "angular",
+    "transformers",
+    "transformers.js",
+    "machine-learning",
+    "onnx",
+    "webgpu",
+    "wasm",
+    "huggingface",
+    "embeddings",
+    "sentiment-analysis",
+    "on-device",
+    "signals"
+  ],
+  "license": "MIT",
+  "author": "Muzaffar Qosimov",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qwertymuzaffar/ngx-transformers.git"
+  },
+  "peerDependencies": {
+    "@angular/common": "^22.1.0",
+    "@angular/core": "^22.1.0",
+    "@huggingface/transformers": "^4.0.0"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "sideEffects": false
+}
