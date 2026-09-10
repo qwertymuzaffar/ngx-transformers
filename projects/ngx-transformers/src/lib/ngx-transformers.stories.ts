@@ -5,7 +5,9 @@ import { ModelProgressComponent } from './model-progress.component';
 import { createSpeechRecognizer } from './speech-recognizer';
 import { createTextClassifier } from './text-classifier';
 import { createTextEmbedder } from './text-embedder';
+import { createTranslator } from './translator';
 import type { ClassificationResult, Transcription } from './transformers.models';
+import { createZeroShotClassifier } from './zero-shot-classifier';
 
 const meta: Meta<ModelProgressComponent> = {
   title: 'Transformers/NgxTransformers',
@@ -255,4 +257,116 @@ class DictationStoryComponent {
 
 export const MicDictationLive: StoryObj = {
   render: () => ({ template: '<story-dictation />', moduleMetadata: { imports: [DictationStoryComponent] } }),
+};
+
+/**
+ * LIVE demo - zero-shot classification: MobileBERT MNLI (~26 MB, then
+ * cached) scores labels you type against the text, no fine-tuning.
+ */
+@Component({
+  selector: 'story-zero-shot',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ModelProgressComponent],
+  template: `
+    <div class="wrap">
+      <textarea #box rows="3">The new release cut our build time in half and the migration guide was clear.</textarea>
+      <input #labels type="text" value="software, cooking, sports, finance" aria-label="Comma-separated labels" />
+      <div class="row">
+        <button (click)="classify(box.value, labels.value)" [disabled]="classifier.busy()">
+          {{ classifier.ready() ? 'Classify' : 'Load model & classify' }}
+        </button>
+        <ngx-model-progress [status]="classifier.status()" [progress]="classifier.progress()" />
+      </div>
+      <ul>
+        @for (result of results(); track result.label) {
+          <li>
+            <span class="label">{{ result.label }}</span>
+            <span class="track"><span class="fill" [style.width.%]="result.score * 100"></span></span>
+            <code>{{ (result.score * 100).toFixed(1) }}%</code>
+          </li>
+        }
+      </ul>
+    </div>
+  `,
+  styles: `
+    .wrap { max-width: 560px; display: flex; flex-direction: column; gap: 10px; font-family: -apple-system, 'Segoe UI', sans-serif; }
+    textarea, input { font: inherit; font-size: 13.5px; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 9px; }
+    .row { display: flex; align-items: center; gap: 14px; }
+    .row ngx-model-progress { flex: 1; }
+    button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border: none; border-radius: 9px; background: #1e293b; color: #fff; cursor: pointer; }
+    button:disabled { opacity: 0.55; }
+    ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+    li { font-size: 13px; display: grid; grid-template-columns: 110px 1fr 56px; gap: 9px; align-items: center; }
+    .track { height: 8px; border-radius: 4px; background: #e2e8f0; overflow: hidden; }
+    .fill { display: block; height: 100%; background: #f59e0b; border-radius: 4px; }
+    code { font-size: 11.5px; font-weight: 600; text-align: right; }
+  `,
+})
+class ZeroShotStoryComponent {
+  readonly classifier = createZeroShotClassifier();
+  readonly results = signal<ClassificationResult[]>([]);
+
+  async classify(text: string, labelList: string): Promise<void> {
+    const labels = labelList
+      .split(',')
+      .map((label) => label.trim())
+      .filter(Boolean);
+    this.results.set(await this.classifier.classify(text, labels));
+  }
+}
+
+export const ZeroShotClassificationLive: StoryObj = {
+  render: () => ({ template: '<story-zero-shot />', moduleMetadata: { imports: [ZeroShotStoryComponent] } }),
+};
+
+/**
+ * LIVE demo - translation with Marian opus-mt (~105 MB per language pair,
+ * then cached). Each target language is its own model, loaded on demand.
+ */
+@Component({
+  selector: 'story-translate',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ModelProgressComponent],
+  template: `
+    <div class="wrap">
+      <textarea #box rows="3">The model runs entirely in the browser, so the text never leaves the device.</textarea>
+      <div class="row">
+        <select #target aria-label="Target language">
+          <option value="ru">English to Russian</option>
+          <option value="de">English to German</option>
+          <option value="fr">English to French</option>
+          <option value="es">English to Spanish</option>
+        </select>
+        <button (click)="translate(box.value, target.value)" [disabled]="translator.busy()">
+          {{ translator.ready() ? 'Translate' : 'Load model & translate' }}
+        </button>
+      </div>
+      <ngx-model-progress [status]="translator.status()" [progress]="translator.progress()" />
+      @if (translation(); as text) {
+        <blockquote class="out">{{ text }}</blockquote>
+      }
+    </div>
+  `,
+  styles: `
+    .wrap { max-width: 560px; display: flex; flex-direction: column; gap: 10px; font-family: -apple-system, 'Segoe UI', sans-serif; }
+    textarea, select { font: inherit; font-size: 13.5px; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 9px; }
+    .row { display: flex; align-items: center; gap: 14px; }
+    select { flex: 1; }
+    button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border: none; border-radius: 9px; background: #1e293b; color: #fff; cursor: pointer; }
+    button:disabled { opacity: 0.55; }
+    .out { margin: 0; font-size: 14px; border-left: 3px solid #f59e0b; padding: 8px 12px; background: #fffbeb; border-radius: 0 9px 9px 0; }
+  `,
+})
+class TranslateStoryComponent {
+  readonly translator = createTranslator({ from: 'en', to: 'ru' });
+  readonly translation = signal<string | null>(null);
+
+  async translate(text: string, target: string): Promise<void> {
+    this.translation.set(null);
+    this.translation.set(await this.translator.translate(text, { to: target }));
+  }
+}
+
+export const TranslationLive: StoryObj = {
+  render: () => ({ template: '<story-translate />', moduleMetadata: { imports: [TranslateStoryComponent] } }),
 };

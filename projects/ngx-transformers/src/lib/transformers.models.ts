@@ -20,6 +20,11 @@ export interface NgxTransformersConfig {
   dtype?: TransformersDtype;
   /** Extra options forwarded verbatim to every pipeline() call. */
   pipelineOptions?: Record<string, unknown>;
+  /**
+   * Translation checkpoints per language pair, keyed "from-to" (e.g.
+   * "en-ru"). Pairs not listed fall back to Xenova/opus-mt-{from}-{to}.
+   */
+  translationModels?: Record<string, string>;
 }
 
 /** Per-pipeline request; wins over the global config where both are set. */
@@ -71,4 +76,29 @@ export interface TranscribeOptions {
   language?: string;
   /** 'transcribe' (default) or 'translate' (multilingual checkpoints only). */
   task?: 'transcribe' | 'translate';
+}
+
+/** Options for ZeroShotClassifier.classify(). */
+export interface ZeroShotOptions {
+  /** Score every label on its own (several can be high) instead of picking one. */
+  multiLabel?: boolean;
+  /** NLI hypothesis with a {} placeholder for the label; default "This example is {}.". */
+  hypothesisTemplate?: string;
+}
+
+/**
+ * Language pair for one translate() call. Codes follow the checkpoint:
+ * ISO 639-1 for opus-mt ("en", "ru"), FLORES-200 for NLLB ("eng_Latn").
+ */
+export interface TranslateOptions {
+  from?: string;
+  to?: string;
+}
+
+/** createTranslator() options: a default pair and/or a pinned checkpoint. */
+export interface TranslatorOptions extends Partial<Omit<PipelineRequest, 'task'>> {
+  /** Default source language for translate(); required unless every call passes one or `model` is pinned. */
+  from?: string;
+  /** Default target language for translate(). */
+  to?: string;
 }

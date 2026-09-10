@@ -45,11 +45,21 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
   }
 
   /** Runs the pipeline, loading the model first if needed. */
-  async run(input: TIn, runOptions?: Record<string, unknown>): Promise<TOut> {
+  run(input: TIn, runOptions?: Record<string, unknown>): Promise<TOut> {
+    return this.runWith(input, runOptions);
+  }
+
+  /**
+   * Runs the pipeline with extra positional arguments after the input, for
+   * tasks whose pipeline signature is not (input, options): zero-shot
+   * classification takes (text, candidateLabels, options).
+   */
+  protected async runWith(input: TIn, ...extraArgs: unknown[]): Promise<TOut> {
     await this.load();
     this.status.set('busy');
     try {
-      return (await this.pipe!(input, runOptions)) as TOut;
+      const pipe = this.pipe! as (...args: unknown[]) => Promise<unknown>;
+      return (await pipe(input, ...extraArgs)) as TOut;
     } finally {
       // A failed run leaves the model intact - back to ready either way.
       this.status.set('ready');
