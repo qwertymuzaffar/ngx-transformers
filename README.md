@@ -4,7 +4,7 @@
 [![CI](https://github.com/qwertymuzaffar/ngx-transformers/actions/workflows/ci.yml/badge.svg)](https://github.com/qwertymuzaffar/ngx-transformers/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Run Hugging Face [Transformers.js](https://github.com/huggingface/transformers.js) models in Angular - **on-device ML with a signals API**. Text classification, sentence embeddings, semantic search, and Whisper speech-to-text that execute entirely in the browser: no server, no API key, works offline once the model is cached.
+Run Hugging Face [Transformers.js](https://github.com/huggingface/transformers.js) models in Angular - **on-device ML with a signals API**. Text classification, zero-shot classification, sentence embeddings, semantic search, translation, and Whisper speech-to-text that execute entirely in the browser: no server, no API key, works offline once the model is cached.
 
 **[Live demo (Storybook)](https://qwertymuzaffar.github.io/ngx-transformers/)** - loads real models in your browser.
 
@@ -90,6 +90,49 @@ async toggle() {
 
 > Note: the recognizer defaults to `dtype: 'q4'` - q8 Whisper decoders currently fail on the v4 WASM runtime ([transformers.js#1707](https://github.com/huggingface/transformers.js/issues/1707)). Multilingual checkpoints (e.g. `onnx-community/whisper-tiny`) accept `language` and `task: 'translate'` options.
 
+## Zero-shot classification
+
+Score labels you name against a text, no fine-tuning - an NLI model judges whether "This example is {label}." follows from the text:
+
+```ts
+import { createZeroShotClassifier } from 'ngx-transformers';
+
+readonly classifier = createZeroShotClassifier(); // mobilebert-uncased-mnli, ~26 MB q8
+
+const scored = await this.classifier.classify(ticketText, ['billing', 'bug report', 'feature request']);
+// [{ label: 'bug report', score: 0.91 }, { label: 'billing', score: 0.06 }, ...] - scores sum to 1
+
+// several labels can apply at once - score each on its own:
+const tags = await this.classifier.classify(text, ['food', 'repair', 'politics'], {
+  multiLabel: true,
+  hypothesisTemplate: 'This text is about {}.',
+});
+```
+
+`Xenova/distilbert-base-uncased-mnli` (~80 MB) is the more accurate drop-in: `createZeroShotClassifier({ model: '...' })`.
+
+## Translation
+
+Marian opus-mt checkpoints, one per language pair (~105 MB q8 each), resolved from the pair and loaded on demand:
+
+```ts
+import { createTranslator } from 'ngx-transformers';
+
+readonly translator = createTranslator({ from: 'en', to: 'ru' }); // Xenova/opus-mt-en-ru
+
+const russian = await this.translator.translate('The model runs entirely in the browser.');
+const german = await this.translator.translate('Good morning.', { to: 'de' }); // opus-mt-en-de, its own download
+```
+
+The translator's `status` / `progress` signals follow the model used by the latest call, so one `<ngx-model-progress>` covers every pair; `handleFor({ to: 'de' })` returns the underlying `PipelineHandle` when you want one per pair. Override the checkpoint for a pair globally with `provideTransformers({ translationModels: { 'en-ru': 'my-org/en-ru-tiny' } })`.
+
+Multilingual checkpoints (NLLB, M2M100) serve every pair from one model and take the codes per call:
+
+```ts
+readonly translator = createTranslator({ model: 'Xenova/nllb-200-distilled-600M' });
+await this.translator.translate(text, { from: 'eng_Latn', to: 'tgk_Cyrl' }); // src_lang / tgt_lang forwarded
+```
+
 ## Any pipeline
 
 `createPipeline()` exposes the full Transformers.js task surface with the same signal lifecycle:
@@ -115,7 +158,7 @@ bootstrapApplication(App, {
 });
 ```
 
-Per-pipeline `device`/`dtype`/`options` win over the global config.
+Per-pipeline `device`/`dtype`/`options` win over the global config. `translationModels` maps a `"from-to"` pair to a checkpoint for `createTranslator()`.
 
 ## API
 
@@ -127,6 +170,8 @@ Per-pipeline `device`/`dtype`/`options` win over the global config.
 | `createTextClassifier(options?)` | `TextClassifier` - sentiment/classification, `classify(text, topK?)` |
 | `createTextEmbedder(options?)` | `TextEmbedder` - `embed()`, `similarity()`, `rank()` |
 | `createSpeechRecognizer(options?)` | `SpeechRecognizer` - `transcribe(audio, options?)` with timestamps |
+| `createZeroShotClassifier(options?)` | `ZeroShotClassifier` - `classify(text, labels, { multiLabel?, hypothesisTemplate? })` |
+| `createTranslator(options?)` | `Translator` - `translate(text, { from?, to? })`, one model per pair, `handleFor(pair)` |
 | `createMicRecorder(deps?)` | `MicRecorder` - mic capture with `recording`/`seconds`/`error` signals |
 | `cosineSimilarity(a, b)` / `decodeAudio(blob)` | Standalone helpers |
 
@@ -152,6 +197,8 @@ Status line + download bar for any handle. Inputs: `status` (required), `progres
 | `createTextClassifier` | [Xenova/distilbert-base-uncased-finetuned-sst-2-english](https://huggingface.co/Xenova/distilbert-base-uncased-finetuned-sst-2-english) | ~65 MB | Apache-2.0 |
 | `createTextEmbedder` | [Xenova/all-MiniLM-L6-v2](https://huggingface.co/Xenova/all-MiniLM-L6-v2) | ~23 MB | Apache-2.0 |
 | `createSpeechRecognizer` | [onnx-community/whisper-tiny.en](https://huggingface.co/onnx-community/whisper-tiny.en) | ~41 MB (q4) | Apache-2.0 |
+| `createZeroShotClassifier` | [Xenova/mobilebert-uncased-mnli](https://huggingface.co/Xenova/mobilebert-uncased-mnli) | ~26 MB | unlisted on the Hub (base MobileBERT: Apache-2.0) |
+| `createTranslator` | [Xenova/opus-mt-{from}-{to}](https://huggingface.co/models?search=Xenova/opus-mt) | ~105 MB per pair | varies per pair (Apache-2.0 or CC-BY-4.0) |
 
 Swap any compatible checkpoint via `{ model: '...' }`. Check the license of the model you ship.
 
@@ -161,7 +208,6 @@ Model loading is browser-only (WASM/WebGPU). Creating handles is safe on the ser
 
 ## Roadmap
 
-- Zero-shot classification and translation wrappers
 - WebGPU feature-detection helper
 
 ## License
