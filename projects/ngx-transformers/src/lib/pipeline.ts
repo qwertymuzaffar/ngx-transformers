@@ -1,5 +1,6 @@
 import { DestroyRef, computed, inject, signal } from '@angular/core';
-import type { ModelProgress, NgxTransformersConfig, PipelineRequest, PipelineStatus } from './transformers.models';
+import { detectDevice } from './device-detection';
+import type { ModelProgress, NgxTransformersConfig, PipelineRequest, PipelineStatus, TransformersDevice } from './transformers.models';
 import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY, type PipelineFactory, type PipelineLike } from './transformers.providers';
 
 /** Shape of Transformers.js progress_callback events (subset we consume). */
@@ -83,7 +84,7 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
       ...this.request.options,
       progress_callback: (event: RawProgressEvent) => this.onProgress(event),
     };
-    const device = this.request.device ?? this.config.device;
+    const device = await this.resolveDevice();
     const dtype = this.request.dtype ?? this.config.dtype;
     if (device && device !== 'auto') options['device'] = device;
     if (dtype) options['dtype'] = dtype;
@@ -97,6 +98,16 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
       this.status.set('error');
       throw err;
     }
+  }
+
+  /**
+   * An explicit request or global device wins; with `autoDevice` on, an
+   * unset or 'auto' device is probed for WebGPU (once, cached) at load time.
+   */
+  private async resolveDevice(): Promise<TransformersDevice | undefined> {
+    const configured = this.request.device ?? this.config.device;
+    if (configured && configured !== 'auto') return configured;
+    return this.config.autoDevice ? detectDevice() : configured;
   }
 
   private onProgress(event: RawProgressEvent): void {
