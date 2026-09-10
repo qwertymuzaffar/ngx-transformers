@@ -5,6 +5,7 @@
 export * from './lib/transformers.models';
 export * from './lib/transformers.providers';
 export * from './lib/pipeline';
+export * from './lib/device-detection';
 export * from './lib/text-classifier';
 export * from './lib/text-embedder';
 export * from './lib/speech-recognizer';

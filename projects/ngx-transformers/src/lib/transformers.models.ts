@@ -17,6 +17,11 @@ export type TransformersDtype = 'fp32' | 'fp16' | 'q8' | 'q4';
 /** Global defaults applied to every pipeline; see provideTransformers(). */
 export interface NgxTransformersConfig {
   device?: TransformersDevice;
+  /**
+   * Probe WebGPU once and use it when available, else WASM, for every
+   * handle that sets no device (or 'auto'). An explicit device still wins.
+   */
+  autoDevice?: boolean;
   dtype?: TransformersDtype;
   /** Extra options forwarded verbatim to every pipeline() call. */
   pipelineOptions?: Record<string, unknown>;

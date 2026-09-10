@@ -206,9 +206,26 @@ Swap any compatible checkpoint via `{ model: '...' }`. Check the license of the 
 
 Model loading is browser-only (WASM/WebGPU). Creating handles is safe on the server - nothing downloads until `load()`/`run()` - but call those only in browser code paths.
 
-## Roadmap
+## Device selection
 
-- WebGPU feature-detection helper
+WebGPU is several times faster than WASM where it works, but `navigator.gpu` existing is not enough: `requestAdapter()` can still hand back nothing on a machine without a usable GPU. `hasWebGpu()` runs that probe once (cached) and `detectDevice()` turns the answer into a device name; both resolve to the WASM answer on the server.
+
+```ts
+import { createTextClassifier, detectDevice } from 'ngx-transformers';
+
+const device = await detectDevice(); // 'webgpu' | 'wasm'
+const classifier = createTextClassifier({ device });
+```
+
+Or let every handle decide for itself:
+
+```ts
+bootstrapApplication(App, {
+  providers: [provideTransformers({ autoDevice: true, dtype: 'q8' })],
+});
+```
+
+With `autoDevice`, a handle that sets no `device` (or `'auto'`) probes WebGPU on its first load and uses it when available, else WASM. An explicit `device` on the handle or in the global config still wins. `resetDeviceDetection()` clears the cached answer.
 
 ## License
 
