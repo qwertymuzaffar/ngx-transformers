@@ -25,7 +25,12 @@ type Story = StoryObj<ModelProgressComponent>;
 export const ModelProgress: Story = {
   args: {
     status: 'loading',
-    progress: { file: 'onnx/model_quantized.onnx', progress: 63, loadedBytes: 41_000_000, totalBytes: 65_000_000 },
+    progress: {
+      file: 'onnx/model_quantized.onnx',
+      progress: 63,
+      loadedBytes: 41_000_000,
+      totalBytes: 65_000_000,
+    },
   },
 };
 
@@ -54,12 +59,42 @@ export const ModelProgress: Story = {
     </div>
   `,
   styles: `
-    .wrap { max-width: 560px; display: flex; flex-direction: column; gap: 10px; font-family: -apple-system, 'Segoe UI', sans-serif; }
-    textarea { font: inherit; font-size: 13.5px; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 9px; }
-    .row { display: flex; align-items: center; gap: 14px; }
-    .row ngx-model-progress { flex: 1; }
-    button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border: none; border-radius: 9px; background: #1e293b; color: #fff; cursor: pointer; }
-    button:disabled { opacity: 0.55; }
+    .wrap {
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+    }
+    textarea {
+      font: inherit;
+      font-size: 13.5px;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 9px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .row ngx-model-progress {
+      flex: 1;
+    }
+    button {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 9px;
+      background: #1e293b;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.55;
+    }
   `,
 })
 class SentimentStoryComponent {
@@ -74,7 +109,10 @@ class SentimentStoryComponent {
 }
 
 export const SentimentAnalysisLive: StoryObj = {
-  render: () => ({ template: '<story-sentiment />', moduleMetadata: { imports: [SentimentStoryComponent] } }),
+  render: () => ({
+    template: '<story-sentiment />',
+    moduleMetadata: { imports: [SentimentStoryComponent] },
+  }),
 };
 
 /**
@@ -87,7 +125,12 @@ export const SentimentAnalysisLive: StoryObj = {
   imports: [ModelProgressComponent],
   template: `
     <div class="wrap">
-      <input #q type="text" value="how do I make my app faster?" (keydown.enter)="search(q.value)" />
+      <input
+        #q
+        type="text"
+        value="how do I make my app faster?"
+        (keydown.enter)="search(q.value)"
+      />
       <div class="row">
         <button (click)="search(q.value)" [disabled]="embedder.busy()">
           {{ embedder.ready() ? 'Search' : 'Load model & search' }}
@@ -107,15 +150,68 @@ export const SentimentAnalysisLive: StoryObj = {
     </div>
   `,
   styles: `
-    .wrap { max-width: 560px; display: flex; flex-direction: column; gap: 10px; font-family: -apple-system, 'Segoe UI', sans-serif; }
-    input { font: inherit; font-size: 13.5px; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 9px; }
-    .row { display: flex; align-items: center; gap: 14px; }
-    .row ngx-model-progress { flex: 1; }
-    button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border: none; border-radius: 9px; background: #1e293b; color: #fff; cursor: pointer; }
-    button:disabled { opacity: 0.55; }
-    ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-    li { font-size: 13px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; padding: 8px 11px; display: flex; gap: 9px; align-items: center; }
-    code { font-size: 11.5px; font-weight: 600; background: #fef3c7; color: #92400e; border-radius: 7px; padding: 2px 7px; }
+    .wrap {
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+    }
+    input {
+      font: inherit;
+      font-size: 13.5px;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 9px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .row ngx-model-progress {
+      flex: 1;
+    }
+    button {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 9px;
+      background: #1e293b;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.55;
+    }
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    li {
+      font-size: 13px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 9px;
+      padding: 8px 11px;
+      display: flex;
+      gap: 9px;
+      align-items: center;
+    }
+    code {
+      font-size: 11.5px;
+      font-weight: 600;
+      background: #fef3c7;
+      color: #92400e;
+      border-radius: 7px;
+      padding: 2px 7px;
+    }
   `,
 })
 class SemanticSearchStoryComponent {
@@ -141,7 +237,10 @@ class SemanticSearchStoryComponent {
 }
 
 export const SemanticSearchLive: StoryObj = {
-  render: () => ({ template: '<story-semantic-search />', moduleMetadata: { imports: [SemanticSearchStoryComponent] } }),
+  render: () => ({
+    template: '<story-semantic-search />',
+    moduleMetadata: { imports: [SemanticSearchStoryComponent] },
+  }),
 };
 
 /**
@@ -166,7 +265,9 @@ export const SemanticSearchLive: StoryObj = {
         @if (r.chunks?.length) {
           <ul class="chunks">
             @for (c of r.chunks; track $index) {
-              <li><code>{{ c.start }}s - {{ c.end }}s</code> {{ c.text }}</li>
+              <li>
+                <code>{{ c.start }}s - {{ c.end }}s</code> {{ c.text }}
+              </li>
             }
           </ul>
         }
@@ -174,22 +275,72 @@ export const SemanticSearchLive: StoryObj = {
     </div>
   `,
   styles: `
-    .wrap { max-width: 560px; display: flex; flex-direction: column; gap: 10px; font-family: -apple-system, 'Segoe UI', sans-serif; }
-    audio { width: 100%; }
-    .row { display: flex; align-items: center; gap: 14px; }
-    .row ngx-model-progress { flex: 1; }
-    button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border: none; border-radius: 9px; background: #1e293b; color: #fff; cursor: pointer; }
-    button:disabled { opacity: 0.55; }
-    .transcript { margin: 0; font-size: 14px; border-left: 3px solid #f59e0b; padding: 8px 12px; background: #fffbeb; border-radius: 0 9px 9px 0; }
-    .chunks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-    .chunks li { font-size: 12.5px; color: #334155; }
-    code { font-size: 11px; background: #f1f5f9; border-radius: 5px; padding: 1px 6px; margin-right: 6px; }
+    .wrap {
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+    }
+    audio {
+      width: 100%;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .row ngx-model-progress {
+      flex: 1;
+    }
+    button {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 9px;
+      background: #1e293b;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.55;
+    }
+    .transcript {
+      margin: 0;
+      font-size: 14px;
+      border-left: 3px solid #f59e0b;
+      padding: 8px 12px;
+      background: #fffbeb;
+      border-radius: 0 9px 9px 0;
+    }
+    .chunks {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .chunks li {
+      font-size: 12.5px;
+      color: #334155;
+    }
+    code {
+      font-size: 11px;
+      background: #f1f5f9;
+      border-radius: 5px;
+      padding: 1px 6px;
+      margin-right: 6px;
+    }
   `,
 })
 class TranscribeStoryComponent {
   readonly whisper = createSpeechRecognizer();
   readonly result = signal<Transcription | null>(null);
-  readonly sampleUrl = 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav';
+  readonly sampleUrl =
+    'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav';
 
   async transcribe(): Promise<void> {
     this.result.set(null);
@@ -198,7 +349,10 @@ class TranscribeStoryComponent {
 }
 
 export const SpeechToTextLive: StoryObj = {
-  render: () => ({ template: '<story-transcribe />', moduleMetadata: { imports: [TranscribeStoryComponent] } }),
+  render: () => ({
+    template: '<story-transcribe />',
+    moduleMetadata: { imports: [TranscribeStoryComponent] },
+  }),
 };
 
 /**
@@ -226,16 +380,66 @@ export const SpeechToTextLive: StoryObj = {
     </div>
   `,
   styles: `
-    .wrap { max-width: 560px; display: flex; flex-direction: column; gap: 10px; font-family: -apple-system, 'Segoe UI', sans-serif; }
-    .row { display: flex; align-items: center; gap: 14px; }
-    .row ngx-model-progress { flex: 1; }
-    button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border: none; border-radius: 9px; background: #1e293b; color: #fff; cursor: pointer; }
-    button.rec { background: #dc2626; animation: pulse 1.2s ease-in-out infinite; }
-    button:disabled { opacity: 0.55; }
-    .transcript { margin: 0; font-size: 14px; border-left: 3px solid #f59e0b; padding: 8px 12px; background: #fffbeb; border-radius: 0 9px 9px 0; }
-    .err { font-size: 12.5px; color: #b91c1c; margin: 0; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
-    @media (prefers-reduced-motion: reduce) { button.rec { animation: none; } }
+    .wrap {
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .row ngx-model-progress {
+      flex: 1;
+    }
+    button {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 9px;
+      background: #1e293b;
+      color: #fff;
+      cursor: pointer;
+    }
+    button.rec {
+      background: #dc2626;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    button:disabled {
+      opacity: 0.55;
+    }
+    .transcript {
+      margin: 0;
+      font-size: 14px;
+      border-left: 3px solid #f59e0b;
+      padding: 8px 12px;
+      background: #fffbeb;
+      border-radius: 0 9px 9px 0;
+    }
+    .err {
+      font-size: 12.5px;
+      color: #b91c1c;
+      margin: 0;
+    }
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.75;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button.rec {
+        animation: none;
+      }
+    }
   `,
 })
 class DictationStoryComponent {
@@ -256,7 +460,10 @@ class DictationStoryComponent {
 }
 
 export const MicDictationLive: StoryObj = {
-  render: () => ({ template: '<story-dictation />', moduleMetadata: { imports: [DictationStoryComponent] } }),
+  render: () => ({
+    template: '<story-dictation />',
+    moduleMetadata: { imports: [DictationStoryComponent] },
+  }),
 };
 
 /**
@@ -269,8 +476,14 @@ export const MicDictationLive: StoryObj = {
   imports: [ModelProgressComponent],
   template: `
     <div class="wrap">
-      <textarea #box rows="3">The new release cut our build time in half and the migration guide was clear.</textarea>
-      <input #labels type="text" value="software, cooking, sports, finance" aria-label="Comma-separated labels" />
+      <textarea #box rows="3">
+The new release cut our build time in half and the migration guide was clear.</textarea>
+      <input
+        #labels
+        type="text"
+        value="software, cooking, sports, finance"
+        aria-label="Comma-separated labels"
+      />
       <div class="row">
         <button (click)="classify(box.value, labels.value)" [disabled]="classifier.busy()">
           {{ classifier.ready() ? 'Classify' : 'Load model & classify' }}
@@ -281,7 +494,9 @@ export const MicDictationLive: StoryObj = {
         @for (result of results(); track result.label) {
           <li>
             <span class="label">{{ result.label }}</span>
-            <span class="track"><span class="fill" [style.width.%]="result.score * 100"></span></span>
+            <span class="track"
+              ><span class="fill" [style.width.%]="result.score * 100"></span
+            ></span>
             <code>{{ (result.score * 100).toFixed(1) }}%</code>
           </li>
         }
@@ -289,17 +504,75 @@ export const MicDictationLive: StoryObj = {
     </div>
   `,
   styles: `
-    .wrap { max-width: 560px; display: flex; flex-direction: column; gap: 10px; font-family: -apple-system, 'Segoe UI', sans-serif; }
-    textarea, input { font: inherit; font-size: 13.5px; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 9px; }
-    .row { display: flex; align-items: center; gap: 14px; }
-    .row ngx-model-progress { flex: 1; }
-    button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border: none; border-radius: 9px; background: #1e293b; color: #fff; cursor: pointer; }
-    button:disabled { opacity: 0.55; }
-    ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-    li { font-size: 13px; display: grid; grid-template-columns: 110px 1fr 56px; gap: 9px; align-items: center; }
-    .track { height: 8px; border-radius: 4px; background: #e2e8f0; overflow: hidden; }
-    .fill { display: block; height: 100%; background: #f59e0b; border-radius: 4px; }
-    code { font-size: 11.5px; font-weight: 600; text-align: right; }
+    .wrap {
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+    }
+    textarea,
+    input {
+      font: inherit;
+      font-size: 13.5px;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 9px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .row ngx-model-progress {
+      flex: 1;
+    }
+    button {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 9px;
+      background: #1e293b;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.55;
+    }
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    li {
+      font-size: 13px;
+      display: grid;
+      grid-template-columns: 110px 1fr 56px;
+      gap: 9px;
+      align-items: center;
+    }
+    .track {
+      height: 8px;
+      border-radius: 4px;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+    .fill {
+      display: block;
+      height: 100%;
+      background: #f59e0b;
+      border-radius: 4px;
+    }
+    code {
+      font-size: 11.5px;
+      font-weight: 600;
+      text-align: right;
+    }
   `,
 })
 class ZeroShotStoryComponent {
@@ -316,7 +589,10 @@ class ZeroShotStoryComponent {
 }
 
 export const ZeroShotClassificationLive: StoryObj = {
-  render: () => ({ template: '<story-zero-shot />', moduleMetadata: { imports: [ZeroShotStoryComponent] } }),
+  render: () => ({
+    template: '<story-zero-shot />',
+    moduleMetadata: { imports: [ZeroShotStoryComponent] },
+  }),
 };
 
 /**
@@ -329,7 +605,8 @@ export const ZeroShotClassificationLive: StoryObj = {
   imports: [ModelProgressComponent],
   template: `
     <div class="wrap">
-      <textarea #box rows="3">The model runs entirely in the browser, so the text never leaves the device.</textarea>
+      <textarea #box rows="3">
+The model runs entirely in the browser, so the text never leaves the device.</textarea>
       <div class="row">
         <select #target aria-label="Target language">
           <option value="ru">English to Russian</option>
@@ -348,13 +625,51 @@ export const ZeroShotClassificationLive: StoryObj = {
     </div>
   `,
   styles: `
-    .wrap { max-width: 560px; display: flex; flex-direction: column; gap: 10px; font-family: -apple-system, 'Segoe UI', sans-serif; }
-    textarea, select { font: inherit; font-size: 13.5px; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 9px; }
-    .row { display: flex; align-items: center; gap: 14px; }
-    select { flex: 1; }
-    button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border: none; border-radius: 9px; background: #1e293b; color: #fff; cursor: pointer; }
-    button:disabled { opacity: 0.55; }
-    .out { margin: 0; font-size: 14px; border-left: 3px solid #f59e0b; padding: 8px 12px; background: #fffbeb; border-radius: 0 9px 9px 0; }
+    .wrap {
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+    }
+    textarea,
+    select {
+      font: inherit;
+      font-size: 13.5px;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 9px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    select {
+      flex: 1;
+    }
+    button {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 9px;
+      background: #1e293b;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.55;
+    }
+    .out {
+      margin: 0;
+      font-size: 14px;
+      border-left: 3px solid #f59e0b;
+      padding: 8px 12px;
+      background: #fffbeb;
+      border-radius: 0 9px 9px 0;
+    }
   `,
 })
 class TranslateStoryComponent {
@@ -368,5 +683,8 @@ class TranslateStoryComponent {
 }
 
 export const TranslationLive: StoryObj = {
-  render: () => ({ template: '<story-translate />', moduleMetadata: { imports: [TranslateStoryComponent] } }),
+  render: () => ({
+    template: '<story-translate />',
+    moduleMetadata: { imports: [TranslateStoryComponent] },
+  }),
 };

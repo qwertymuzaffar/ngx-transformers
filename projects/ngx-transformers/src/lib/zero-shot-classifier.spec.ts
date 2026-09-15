@@ -1,6 +1,14 @@
 import { TestBed } from '@angular/core/testing';
-import { PIPELINE_FACTORY, type PipelineFactory, type PipelineLike } from './transformers.providers';
-import { createZeroShotClassifier, DEFAULT_ZERO_SHOT_MODEL, ZeroShotClassifier } from './zero-shot-classifier';
+import {
+  PIPELINE_FACTORY,
+  type PipelineFactory,
+  type PipelineLike,
+} from './transformers.providers';
+import {
+  createZeroShotClassifier,
+  DEFAULT_ZERO_SHOT_MODEL,
+  ZeroShotClassifier,
+} from './zero-shot-classifier';
 
 function classifierWith(output: unknown) {
   const calls: { task: string; model?: string; options?: Record<string, unknown> }[] = [];
@@ -18,7 +26,11 @@ function classifierWith(output: unknown) {
   return { classifier, calls, runCalls };
 }
 
-const rawResult = { sequence: 'text', labels: ['programming', 'sports', 'cooking'], scores: [0.9, 0.06, 0.04] };
+const rawResult = {
+  sequence: 'text',
+  labels: ['programming', 'sports', 'cooking'],
+  scores: [0.9, 0.06, 0.04],
+};
 
 describe('ZeroShotClassifier', () => {
   it('defaults to MobileBERT MNLI on the zero-shot-classification task', async () => {

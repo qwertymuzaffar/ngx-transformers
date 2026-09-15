@@ -1,14 +1,27 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { PipelineHandle, createPipeline } from './pipeline';
-import { TextClassifier, createTextClassifier, DEFAULT_TEXT_CLASSIFICATION_MODEL } from './text-classifier';
+import { resetDeviceDetection } from './device-detection';
+import {
+  TextClassifier,
+  createTextClassifier,
+  DEFAULT_TEXT_CLASSIFICATION_MODEL,
+} from './text-classifier';
 import { TextEmbedder, cosineSimilarity, createTextEmbedder } from './text-embedder';
 import { ModelProgressComponent } from './model-progress.component';
-import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY, provideTransformers, type PipelineFactory, type PipelineLike } from './transformers.providers';
+import {
+  NGX_TRANSFORMERS_CONFIG,
+  PIPELINE_FACTORY,
+  provideTransformers,
+  type PipelineFactory,
+  type PipelineLike,
+} from './transformers.providers';
 import type { ModelProgress, PipelineStatus } from './transformers.models';
 
 /** Mock factory capturing calls; resolves to a stub pipeline. */
-function mockFactory(impl?: (input: unknown, options?: Record<string, unknown>) => Promise<unknown>) {
+function mockFactory(
+  impl?: (input: unknown, options?: Record<string, unknown>) => Promise<unknown>,
+) {
   const calls: { task: string; model?: string; options: Record<string, unknown> }[] = [];
   const runCalls: { input: unknown; options?: Record<string, unknown> }[] = [];
   let disposed = 0;
@@ -64,7 +77,9 @@ describe('PipelineHandle', () => {
   });
 
   it('run() lazy-loads, passes input, and returns the output', async () => {
-    const { factory, runCalls } = mockFactory(async (input) => [{ label: 'POSITIVE', score: 0.9, input }]);
+    const { factory, runCalls } = mockFactory(async (input) => [
+      { label: 'POSITIVE', score: 0.9, input },
+    ]);
     const handle = handleWith<string, unknown[]>(factory);
     const out = await handle.run('hello', { top_k: 2 });
     expect(handle.status()).toBe('ready');
@@ -125,11 +140,11 @@ describe('PipelineHandle', () => {
 
   it('forwards device/dtype with request overriding global config', async () => {
     const { factory, calls } = mockFactory();
-    const handle = new PipelineHandle(
-      { task: 't', model: 'm', dtype: 'q4' },
-      factory,
-      { device: 'webgpu', dtype: 'q8', pipelineOptions: { cache_dir: '/tmp' } },
-    );
+    const handle = new PipelineHandle({ task: 't', model: 'm', dtype: 'q4' }, factory, {
+      device: 'webgpu',
+      dtype: 'q8',
+      pipelineOptions: { cache_dir: '/tmp' },
+    });
     await handle.load();
     expect(calls[0].options['device']).toBe('webgpu');
     expect(calls[0].options['dtype']).toBe('q4');
@@ -201,13 +216,17 @@ describe('createPipeline / DI wiring', () => {
 describe('TextClassifier', () => {
   function classifierWith(output: unknown): TextClassifier {
     const { factory } = mockFactory(async () => output);
-    TestBed.configureTestingModule({ providers: [{ provide: PIPELINE_FACTORY, useValue: factory }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }],
+    });
     return TestBed.runInInjectionContext(() => createTextClassifier());
   }
 
   it('defaults to the SST-2 sentiment model', () => {
     const { factory, calls } = mockFactory();
-    TestBed.configureTestingModule({ providers: [{ provide: PIPELINE_FACTORY, useValue: factory }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }],
+    });
     const classifier = TestBed.runInInjectionContext(() => createTextClassifier());
     return classifier.load().then(() => {
       expect(calls[0].model).toBe(DEFAULT_TEXT_CLASSIFICATION_MODEL);
@@ -232,14 +251,22 @@ describe('TextClassifier', () => {
 });
 
 describe('TextEmbedder', () => {
-  function embedderWith(output: unknown): { embedder: TextEmbedder; runCalls: { input: unknown; options?: Record<string, unknown> }[] } {
+  function embedderWith(output: unknown): {
+    embedder: TextEmbedder;
+    runCalls: { input: unknown; options?: Record<string, unknown> }[];
+  } {
     const { factory, runCalls } = mockFactory(async () => output);
-    TestBed.configureTestingModule({ providers: [{ provide: PIPELINE_FACTORY, useValue: factory }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }],
+    });
     return { embedder: TestBed.runInInjectionContext(() => createTextEmbedder()), runCalls };
   }
 
   it('embed() requests mean pooling + normalization and reads tensor dims/data', async () => {
-    const { embedder, runCalls } = embedderWith({ dims: [2, 3], data: Float32Array.from([1, 0, 0, 0, 1, 0]) });
+    const { embedder, runCalls } = embedderWith({
+      dims: [2, 3],
+      data: Float32Array.from([1, 0, 0, 0, 1, 0]),
+    });
     const rows = await embedder.embed(['a', 'b']);
     expect(runCalls[0].options).toEqual({ pooling: 'mean', normalize: true });
     expect(rows).toEqual([
@@ -249,7 +276,11 @@ describe('TextEmbedder', () => {
   });
 
   it('embed() prefers tolist() when available and wraps single strings', async () => {
-    const { embedder, runCalls } = embedderWith({ dims: [1, 2], data: [9, 9], tolist: () => [[0.5, 0.5]] });
+    const { embedder, runCalls } = embedderWith({
+      dims: [1, 2],
+      data: [9, 9],
+      tolist: () => [[0.5, 0.5]],
+    });
     const rows = await embedder.embed('solo');
     expect(runCalls[0].input).toEqual(['solo']);
     expect(rows).toEqual([[0.5, 0.5]]);
@@ -315,7 +346,12 @@ describe('ModelProgressComponent', () => {
   });
 
   it('shows file, bar, and percentage while loading', () => {
-    const el = render('loading', { file: 'onnx/model_q8.onnx', progress: 63, loadedBytes: 63, totalBytes: 100 });
+    const el = render('loading', {
+      file: 'onnx/model_q8.onnx',
+      progress: 63,
+      loadedBytes: 63,
+      totalBytes: 100,
+    });
     expect(el.textContent).toContain('Downloading model');
     expect(el.textContent).toContain('onnx/model_q8.onnx');
     expect(el.textContent).toContain('63%');
@@ -340,5 +376,219 @@ describe('ModelProgressComponent', () => {
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Bereit');
+  });
+});
+
+describe('PipelineHandle lifecycle races', () => {
+  /** A factory whose pipe arrives only once release() is called (or never, after fail()). */
+  function deferredFactory() {
+    const inner = mockFactory();
+    const options: Record<string, unknown>[] = [];
+    let release!: () => void;
+    let fail!: (err: unknown) => void;
+    const gate = new Promise<void>((resolve, reject) => {
+      release = resolve;
+      fail = reject;
+    });
+    const factory: PipelineFactory = async (task, model, opts) => {
+      options.push(opts);
+      await gate;
+      return inner.factory(task, model, opts);
+    };
+    return { factory, release, fail, options, calls: inner.calls, disposed: inner.disposed };
+  }
+
+  /** A pipe whose runs settle only when the test calls the matching resolver. */
+  function manualRuns() {
+    const finish: (() => void)[] = [];
+    const mocks = mockFactory(() => new Promise<void>((resolve) => finish.push(resolve)));
+    return { ...mocks, finish };
+  }
+
+  it('dispose() during load cancels it: the late model is freed and the handle stays idle', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const loading = handle.load();
+    expect(handle.status()).toBe('loading');
+    await vi.waitFor(() => expect(mocks.options).toHaveLength(1)); // the download has started
+
+    await handle.dispose();
+    expect(handle.status()).toBe('idle');
+
+    mocks.release();
+    await loading;
+    expect(handle.status()).toBe('idle');
+    expect(handle.ready()).toBe(false);
+    expect(mocks.disposed()).toBe(1);
+
+    // and the handle is usable again afterwards
+    await handle.load();
+    expect(handle.status()).toBe('ready');
+    expect(mocks.calls).toHaveLength(2);
+  });
+
+  it('a run() waiting on a cancelled load rejects instead of using a disposed handle', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const run = handle.run('x');
+    await handle.dispose();
+    mocks.release();
+    await expect(run).rejects.toThrow(/disposed/);
+    expect(handle.status()).toBe('idle');
+  });
+
+  it('progress events from a cancelled load are ignored', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const loading = handle.load();
+    await vi.waitFor(() => expect(mocks.options).toHaveLength(1));
+    const report = mocks.options[0]['progress_callback'] as (event: unknown) => void;
+    report({ status: 'progress', file: 'a.onnx', progress: 10 });
+    expect(handle.progress()?.progress).toBe(10);
+
+    await handle.dispose();
+    report({ status: 'progress', file: 'a.onnx', progress: 50 });
+    expect(handle.progress()).toBeNull();
+
+    mocks.release();
+    await loading;
+  });
+
+  it('a load that fails after dispose() neither throws nor sets the error state', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const loading = handle.load();
+    await vi.waitFor(() => expect(mocks.options).toHaveLength(1));
+    await handle.dispose();
+    mocks.fail(new Error('network'));
+    await expect(loading).resolves.toBeUndefined();
+    expect(handle.status()).toBe('idle');
+    expect(handle.error()).toBeNull();
+  });
+
+  it('dispose() during the device probe never starts the download', async () => {
+    let releaseProbe!: () => void;
+    const probe = new Promise<null>((resolve) => (releaseProbe = () => resolve(null)));
+    vi.stubGlobal('navigator', { gpu: { requestAdapter: () => probe } });
+    resetDeviceDetection();
+    try {
+      const mocks = mockFactory();
+      const handle = handleWith(
+        mocks.factory,
+        { task: 'text-classification' },
+        { autoDevice: true },
+      );
+      const loading = handle.load();
+      expect(handle.status()).toBe('loading');
+      await handle.dispose();
+      releaseProbe();
+      await loading;
+      expect(mocks.calls).toHaveLength(0);
+      expect(handle.status()).toBe('idle');
+    } finally {
+      vi.unstubAllGlobals();
+      resetDeviceDetection();
+    }
+  });
+
+  it('overlapping runs stay busy until the last one finishes', async () => {
+    const { factory, finish } = manualRuns();
+    const handle = handleWith(factory);
+    const first = handle.run('a');
+    const second = handle.run('b');
+    await vi.waitFor(() => expect(finish).toHaveLength(2));
+
+    finish[0]();
+    await first;
+    expect(handle.status()).toBe('busy');
+
+    finish[1]();
+    await second;
+    expect(handle.status()).toBe('ready');
+  });
+
+  it('dispose() during a run leaves the handle idle once the run settles', async () => {
+    const { factory, finish } = manualRuns();
+    const handle = handleWith(factory);
+    const run = handle.run('a');
+    await vi.waitFor(() => expect(finish).toHaveLength(1));
+
+    await handle.dispose();
+    expect(handle.status()).toBe('idle');
+    finish[0]();
+    await run;
+    expect(handle.status()).toBe('idle');
+  });
+
+  it('a run that outlived dispose() does not disturb the reloaded handle', async () => {
+    const { factory, finish } = manualRuns();
+    const handle = handleWith(factory);
+    const orphan = handle.run('a');
+    await vi.waitFor(() => expect(finish).toHaveLength(1));
+
+    await handle.dispose();
+    await handle.load();
+    const first = handle.run('b');
+    const second = handle.run('c');
+    await vi.waitFor(() => expect(finish).toHaveLength(3));
+    expect(handle.status()).toBe('busy');
+
+    finish[0]();
+    await orphan;
+    expect(handle.status()).toBe('busy');
+
+    finish[1]();
+    await first;
+    expect(handle.status()).toBe('busy'); // c is still running
+
+    finish[2]();
+    await second;
+    expect(handle.status()).toBe('ready');
+  });
+
+  it('destroy() disposes and rejects later load() and run(); dispose() allows a reload', async () => {
+    const mocks = mockFactory();
+    const handle = handleWith(mocks.factory);
+    await handle.load();
+    await handle.destroy();
+    expect(handle.status()).toBe('idle');
+    expect(mocks.disposed()).toBe(1);
+    await expect(handle.load()).rejects.toThrow(/destroyed/);
+    await expect(handle.run('x')).rejects.toThrow(/destroyed/);
+    expect(mocks.calls).toHaveLength(1);
+  });
+
+  it('a preload chained into run() cannot resurrect the model after destroy()', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const chain = handle.load().then(() => handle.run('x'));
+    await vi.waitFor(() => expect(mocks.options).toHaveLength(1));
+    await handle.destroy();
+    mocks.release();
+    await expect(chain).rejects.toThrow(/destroyed/);
+    expect(mocks.calls).toHaveLength(1);
+    expect(mocks.disposed()).toBe(1);
+    expect(handle.status()).toBe('idle');
+  });
+
+  it('a handle created in a component is destroyed for good with it', async () => {
+    const mocks = mockFactory();
+
+    @Component({ template: '' })
+    class HostComponent {
+      readonly handle = createPipeline({ task: 't' });
+    }
+
+    TestBed.configureTestingModule({
+      imports: [HostComponent],
+      providers: [{ provide: PIPELINE_FACTORY, useValue: mocks.factory }],
+    });
+    const fixture = TestBed.createComponent(HostComponent);
+    const handle = fixture.componentInstance.handle;
+    await handle.load();
+    fixture.destroy();
+    await Promise.resolve();
+    await expect(handle.run('x')).rejects.toThrow(/destroyed/);
+    expect(mocks.calls).toHaveLength(1);
   });
 });

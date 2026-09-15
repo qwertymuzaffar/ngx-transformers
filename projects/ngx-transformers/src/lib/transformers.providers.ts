@@ -5,7 +5,10 @@ import type { NgxTransformersConfig } from './transformers.models';
  * The callable returned by Transformers.js pipeline(), reduced to the
  * surface this library relies on.
  */
-export type PipelineLike = ((input: unknown, options?: Record<string, unknown>) => Promise<unknown>) & {
+export type PipelineLike = ((
+  input: unknown,
+  options?: Record<string, unknown>,
+) => Promise<unknown>) & {
   dispose?: () => Promise<void>;
 };
 
@@ -19,25 +22,60 @@ export type PipelineFactory = (
   options: Record<string, unknown>,
 ) => Promise<PipelineLike>;
 
-const defaultPipelineFactory: PipelineFactory = async (task, model, options) => {
-  const { pipeline } = await import('@huggingface/transformers');
-  const pipe = await (pipeline as (t: string, m?: string, o?: object) => Promise<unknown>)(
-    task,
-    model,
-    options,
-  );
-  return pipe as PipelineLike;
-};
+/**
+ * The slice of the @huggingface/transformers module the default factory
+ * uses. The real module satisfies it, so an importer can configure
+ * `env` and return the module as is.
+ */
+export interface TransformersModuleLike {
+  // A method signature on purpose: it keeps the overloaded, generic
+  // pipeline() of the real module assignable.
+  pipeline(task: string, model?: string, options?: object): Promise<unknown>;
+}
 
-export const PIPELINE_FACTORY = new InjectionToken<PipelineFactory>('ngx-transformers.pipeline-factory', {
-  providedIn: 'root',
-  factory: () => defaultPipelineFactory,
-});
+const importTransformers = (): Promise<TransformersModuleLike> =>
+  import('@huggingface/transformers');
 
-export const NGX_TRANSFORMERS_CONFIG = new InjectionToken<NgxTransformersConfig>('ngx-transformers.config', {
-  providedIn: 'root',
-  factory: () => ({}),
-});
+/**
+ * The factory behind PIPELINE_FACTORY. It imports @huggingface/transformers
+ * lazily, on the first pipeline, so the library adds nothing to the initial
+ * bundle. Wrap it to add options or logging while keeping the lazy import:
+ *
+ * ```ts
+ * const base = createDefaultPipelineFactory();
+ * const factory: PipelineFactory = (task, model, options) =>
+ *   base(task, model, { ...options, revision: 'v2' });
+ * providers: [{ provide: PIPELINE_FACTORY, useValue: factory }]
+ * ```
+ *
+ * `load` is the importer. Tests pass a stub module; apps that need to
+ * configure Transformers.js (`env.allowRemoteModels`, `env.localModelPath`)
+ * do it there, before returning the module.
+ */
+export function createDefaultPipelineFactory(
+  load: () => Promise<TransformersModuleLike> = importTransformers,
+): PipelineFactory {
+  return async (task, model, options) => {
+    const { pipeline } = await load();
+    return (await pipeline(task, model, options)) as PipelineLike;
+  };
+}
+
+export const PIPELINE_FACTORY = new InjectionToken<PipelineFactory>(
+  'ngx-transformers.pipeline-factory',
+  {
+    providedIn: 'root',
+    factory: () => createDefaultPipelineFactory(),
+  },
+);
+
+export const NGX_TRANSFORMERS_CONFIG = new InjectionToken<NgxTransformersConfig>(
+  'ngx-transformers.config',
+  {
+    providedIn: 'root',
+    factory: () => ({}),
+  },
+);
 
 /**
  * Sets workspace-wide defaults (device, dtype, extra pipeline options):

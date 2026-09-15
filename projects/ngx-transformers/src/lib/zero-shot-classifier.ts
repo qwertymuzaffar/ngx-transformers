@@ -20,17 +20,25 @@ interface RawZeroShotResult {
  * (~26 MB q8); Xenova/distilbert-base-uncased-mnli (~80 MB) is the
  * higher-accuracy alternative.
  */
-export class ZeroShotClassifier extends PipelineHandle<string, RawZeroShotResult | RawZeroShotResult[]> {
+export class ZeroShotClassifier extends PipelineHandle<
+  string,
+  RawZeroShotResult | RawZeroShotResult[]
+> {
   /**
    * Scores each candidate label for one text; resolves sorted by score (top
    * first). Single-label mode (default) normalizes across labels so scores
    * sum to 1; `multiLabel` scores each label on its own.
    */
-  async classify(text: string, labels: readonly string[], options: ZeroShotOptions = {}): Promise<ClassificationResult[]> {
+  async classify(
+    text: string,
+    labels: readonly string[],
+    options: ZeroShotOptions = {},
+  ): Promise<ClassificationResult[]> {
     if (labels.length === 0) return [];
     const runOptions: Record<string, unknown> = {};
     if (options.multiLabel !== undefined) runOptions['multi_label'] = options.multiLabel;
-    if (options.hypothesisTemplate !== undefined) runOptions['hypothesis_template'] = options.hypothesisTemplate;
+    if (options.hypothesisTemplate !== undefined)
+      runOptions['hypothesis_template'] = options.hypothesisTemplate;
 
     const raw = await this.runWith(text, [...labels], runOptions);
     const first = Array.isArray(raw) ? raw[0] : raw;
@@ -43,12 +51,14 @@ export class ZeroShotClassifier extends PipelineHandle<string, RawZeroShotResult
 }
 
 /** Creates a ZeroShotClassifier in an injection context. */
-export function createZeroShotClassifier(options: Partial<Omit<PipelineRequest, 'task'>> = {}): ZeroShotClassifier {
+export function createZeroShotClassifier(
+  options: Partial<Omit<PipelineRequest, 'task'>> = {},
+): ZeroShotClassifier {
   const classifier = new ZeroShotClassifier(
     { task: 'zero-shot-classification', model: DEFAULT_ZERO_SHOT_MODEL, ...options },
     inject(PIPELINE_FACTORY),
     inject(NGX_TRANSFORMERS_CONFIG),
   );
-  inject(DestroyRef, { optional: true })?.onDestroy(() => void classifier.dispose());
+  inject(DestroyRef, { optional: true })?.onDestroy(() => void classifier.destroy());
   return classifier;
 }

@@ -1,7 +1,17 @@
 import { TestBed } from '@angular/core/testing';
 import { MicRecorder, type RecorderLike } from './mic-recorder';
-import { createSpeechRecognizer, DEFAULT_ASR_MODEL, SpeechRecognizer } from './speech-recognizer';
-import { PIPELINE_FACTORY, type PipelineFactory, type PipelineLike } from './transformers.providers';
+import {
+  createSpeechRecognizer,
+  decodeAudio,
+  DEFAULT_ASR_MODEL,
+  SpeechRecognizer,
+  WHISPER_SAMPLE_RATE,
+} from './speech-recognizer';
+import {
+  PIPELINE_FACTORY,
+  type PipelineFactory,
+  type PipelineLike,
+} from './transformers.providers';
 
 function recognizerWith(output: unknown) {
   const calls: { task: string; model?: string; options?: Record<string, unknown> }[] = [];
@@ -190,5 +200,64 @@ describe('MicRecorder', () => {
     await expect(mic.start()).rejects.toThrow('Permission denied');
     expect(mic.recording()).toBe(false);
     expect(String(mic.error())).toContain('Permission denied');
+  });
+});
+
+describe('decodeAudio', () => {
+  interface GlobalWithAudio {
+    AudioContext?: unknown;
+  }
+  const originalAudioContext = (globalThis as GlobalWithAudio).AudioContext;
+  afterEach(() => {
+    (globalThis as GlobalWithAudio).AudioContext = originalAudioContext;
+  });
+
+  /** Installs a fake AudioContext that "decodes" any buffer to the given channels. */
+  function fakeAudioContext(channels: Float32Array[], decodeError?: Error) {
+    const created: { sampleRate?: number }[] = [];
+    const decoded: ArrayBuffer[] = [];
+    let closed = 0;
+    class FakeAudioContext {
+      constructor(options?: { sampleRate?: number }) {
+        created.push(options ?? {});
+      }
+      async decodeAudioData(buffer: ArrayBuffer) {
+        decoded.push(buffer);
+        if (decodeError) throw decodeError;
+        return { numberOfChannels: channels.length, getChannelData: (i: number) => channels[i] };
+      }
+      async close() {
+        closed++;
+      }
+    }
+    (globalThis as GlobalWithAudio).AudioContext = FakeAudioContext;
+    return { created, decoded, closed: () => closed };
+  }
+
+  it('throws a clear error where there is no AudioContext (server)', async () => {
+    (globalThis as GlobalWithAudio).AudioContext = undefined;
+    await expect(decodeAudio(new ArrayBuffer(4))).rejects.toThrow(/AudioContext/);
+  });
+
+  it('decodes at 16 kHz, returns mono channel data as-is, and closes the context', async () => {
+    const mono = new Float32Array([0.5, -0.5]);
+    const ctx = fakeAudioContext([mono]);
+    const out = await decodeAudio(new ArrayBuffer(4));
+    expect(out).toBe(mono);
+    expect(ctx.created[0].sampleRate).toBe(WHISPER_SAMPLE_RATE);
+    expect(ctx.closed()).toBe(1);
+  });
+
+  it('mixes stereo down to mono by averaging and reads a Blob into an ArrayBuffer first', async () => {
+    const ctx = fakeAudioContext([new Float32Array([1, 0]), new Float32Array([0, 1])]);
+    const out = await decodeAudio(new Blob([new Uint8Array([1, 2, 3])]));
+    expect(Array.from(out)).toEqual([0.5, 0.5]);
+    expect(ctx.decoded[0].byteLength).toBe(3);
+  });
+
+  it('closes the context even when decoding fails', async () => {
+    const ctx = fakeAudioContext([], new Error('bad audio'));
+    await expect(decodeAudio(new ArrayBuffer(4))).rejects.toThrow('bad audio');
+    expect(ctx.closed()).toBe(1);
   });
 });

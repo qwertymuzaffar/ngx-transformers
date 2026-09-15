@@ -1,7 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { detectDevice, hasWebGpu, resetDeviceDetection } from './device-detection';
 import { PipelineHandle, createPipeline } from './pipeline';
-import { PIPELINE_FACTORY, provideTransformers, type PipelineFactory, type PipelineLike } from './transformers.providers';
+import {
+  PIPELINE_FACTORY,
+  provideTransformers,
+  type PipelineFactory,
+  type PipelineLike,
+} from './transformers.providers';
 
 function recordingFactory() {
   const calls: { task: string; options: Record<string, unknown> }[] = [];
@@ -84,9 +89,17 @@ describe('autoDevice', () => {
   it('an explicit device on the request or in the global config wins; "auto" defers to the probe', async () => {
     stubGpu({});
     const { factory, calls } = recordingFactory();
-    await new PipelineHandle({ task: 'pinned-request', device: 'wasm' }, factory, { autoDevice: true }).load();
-    await new PipelineHandle({ task: 'pinned-config' }, factory, { autoDevice: true, device: 'wasm' }).load();
-    await new PipelineHandle({ task: 'auto-config' }, factory, { autoDevice: true, device: 'auto' }).load();
+    await new PipelineHandle({ task: 'pinned-request', device: 'wasm' }, factory, {
+      autoDevice: true,
+    }).load();
+    await new PipelineHandle({ task: 'pinned-config' }, factory, {
+      autoDevice: true,
+      device: 'wasm',
+    }).load();
+    await new PipelineHandle({ task: 'auto-config' }, factory, {
+      autoDevice: true,
+      device: 'auto',
+    }).load();
     expect(calls.map((call) => call.options['device'])).toEqual(['wasm', 'wasm', 'webgpu']);
   });
 
@@ -102,7 +115,10 @@ describe('autoDevice', () => {
     const { factory, calls } = recordingFactory();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }, provideTransformers({ autoDevice: true, dtype: 'q8' })],
+      providers: [
+        { provide: PIPELINE_FACTORY, useValue: factory },
+        provideTransformers({ autoDevice: true, dtype: 'q8' }),
+      ],
     });
     const first = TestBed.runInInjectionContext(() => createPipeline({ task: 'first' }));
     const second = TestBed.runInInjectionContext(() => createPipeline({ task: 'second' }));
