@@ -7,14 +7,18 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm ci --legacy-peer-deps
-      - run: npx ng build ngx-transformers
-      - run: npx ng test ngx-transformers --no-watch --coverage
-      - run: npx ng run demo:build-storybook
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run build:lib
+      - run: npm run test:ci
+      - run: npm run docs:build
+      - run: npm run build:demo
+      - run: npm run build-storybook
         env:
           CI: "true"

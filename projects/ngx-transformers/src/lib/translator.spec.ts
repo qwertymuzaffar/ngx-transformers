@@ -1,9 +1,23 @@
 import { TestBed } from '@angular/core/testing';
 import type { NgxTransformersConfig, TranslatorOptions } from './transformers.models';
-import { PIPELINE_FACTORY, provideTransformers, type PipelineFactory, type PipelineLike } from './transformers.providers';
-import { createTranslator, defaultTranslationModel, resolveTranslationModel, Translator } from './translator';
+import {
+  PIPELINE_FACTORY,
+  provideTransformers,
+  type PipelineFactory,
+  type PipelineLike,
+} from './transformers.providers';
+import {
+  createTranslator,
+  defaultTranslationModel,
+  resolveTranslationModel,
+  Translator,
+} from './translator';
 
-function translatorWith(output: unknown, options: TranslatorOptions = {}, config?: NgxTransformersConfig) {
+function translatorWith(
+  output: unknown,
+  options: TranslatorOptions = {},
+  config?: NgxTransformersConfig,
+) {
   const calls: { task: string; model?: string; options?: Record<string, unknown> }[] = [];
   const runCalls: unknown[][] = [];
   let disposed = 0;
@@ -20,7 +34,10 @@ function translatorWith(output: unknown, options: TranslatorOptions = {}, config
   };
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
-    providers: [{ provide: PIPELINE_FACTORY, useValue: factory }, ...(config ? [provideTransformers(config)] : [])],
+    providers: [
+      { provide: PIPELINE_FACTORY, useValue: factory },
+      ...(config ? [provideTransformers(config)] : []),
+    ],
   });
   const translator = TestBed.runInInjectionContext(() => createTranslator(options));
   return { translator, calls, runCalls, disposed: () => disposed };
@@ -28,14 +45,20 @@ function translatorWith(output: unknown, options: TranslatorOptions = {}, config
 
 describe('Translator', () => {
   it('resolves the opus-mt checkpoint from the pair given at creation', async () => {
-    const { translator, calls } = translatorWith([{ translation_text: 'x' }], { from: 'en', to: 'ru' });
+    const { translator, calls } = translatorWith([{ translation_text: 'x' }], {
+      from: 'en',
+      to: 'ru',
+    });
     await translator.load();
     expect(calls[0].task).toBe('translation');
     expect(calls[0].model).toBe('Xenova/opus-mt-en-ru');
   });
 
   it('translate() returns the trimmed text and sends no language codes to opus-mt', async () => {
-    const { translator, runCalls } = translatorWith([{ translation_text: '  Привет.  ' }], { from: 'en', to: 'ru' });
+    const { translator, runCalls } = translatorWith([{ translation_text: '  Привет.  ' }], {
+      from: 'en',
+      to: 'ru',
+    });
     expect(await translator.translate('Hello')).toBe('Привет.');
     expect(runCalls[0]).toEqual(['Hello', {}]);
   });
@@ -48,13 +71,19 @@ describe('Translator', () => {
   });
 
   it('a per-call pair gets its own model and the signals follow the active one', async () => {
-    const { translator, calls } = translatorWith([{ translation_text: 'x' }], { from: 'en', to: 'ru' });
+    const { translator, calls } = translatorWith([{ translation_text: 'x' }], {
+      from: 'en',
+      to: 'ru',
+    });
     expect(translator.status()).toBe('idle');
     await translator.translate('Hi', { to: 'de' });
     expect(calls.map((call) => call.model)).toEqual(['Xenova/opus-mt-en-de']);
     expect(translator.status()).toBe('ready');
     await translator.translate('Hi');
-    expect(calls.map((call) => call.model)).toEqual(['Xenova/opus-mt-en-de', 'Xenova/opus-mt-en-ru']);
+    expect(calls.map((call) => call.model)).toEqual([
+      'Xenova/opus-mt-en-de',
+      'Xenova/opus-mt-en-ru',
+    ]);
     expect(translator.handleFor({ to: 'de' })).not.toBe(translator.handleFor({}));
     // a third call for a known pair reuses its handle
     await translator.translate('Hi', { to: 'de' });
@@ -116,7 +145,10 @@ describe('Translator', () => {
   });
 
   it('dispose() frees every model and resets the signals; the translator works again', async () => {
-    const { translator, calls, disposed } = translatorWith([{ translation_text: 'x' }], { from: 'en', to: 'ru' });
+    const { translator, calls, disposed } = translatorWith([{ translation_text: 'x' }], {
+      from: 'en',
+      to: 'ru',
+    });
     await translator.translate('Hi');
     await translator.translate('Hi', { to: 'de' });
     await translator.dispose();
@@ -132,6 +164,28 @@ describe('Translator', () => {
     expect(translator).toBeInstanceOf(Translator);
     expect(defaultTranslationModel('en', 'ru')).toBe('Xenova/opus-mt-en-ru');
     expect(resolveTranslationModel('en', 'ru', {})).toBe('Xenova/opus-mt-en-ru');
-    expect(resolveTranslationModel('en', 'ru', { translationModels: { 'en-ru': 'custom' } })).toBe('custom');
+    expect(resolveTranslationModel('en', 'ru', { translationModels: { 'en-ru': 'custom' } })).toBe(
+      'custom',
+    );
+  });
+});
+
+describe('Translator destroy()', () => {
+  it('frees every model and rejects later calls; dispose() still allows reuse', async () => {
+    const { translator, calls } = translatorWith([{ translation_text: 'Привет' }], {
+      from: 'en',
+      to: 'ru',
+    });
+    await translator.load();
+    await translator.dispose();
+    await translator.load(); // reusable after dispose()
+    expect(calls).toHaveLength(2);
+
+    await translator.destroy();
+    expect(translator.status()).toBe('idle');
+    await expect(translator.load()).rejects.toThrow(/destroyed/);
+    await expect(translator.translate('Hello')).rejects.toThrow(/destroyed/);
+    expect(() => translator.handleFor()).toThrow(/destroyed/);
+    expect(calls).toHaveLength(2);
   });
 });

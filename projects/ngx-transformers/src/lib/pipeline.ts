@@ -1,7 +1,18 @@
 import { DestroyRef, computed, inject, signal } from '@angular/core';
 import { detectDevice } from './device-detection';
-import type { ModelProgress, NgxTransformersConfig, PipelineRequest, PipelineStatus, TransformersDevice } from './transformers.models';
-import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY, type PipelineFactory, type PipelineLike } from './transformers.providers';
+import type {
+  ModelProgress,
+  NgxTransformersConfig,
+  PipelineRequest,
+  PipelineStatus,
+  TransformersDevice,
+} from './transformers.models';
+import {
+  NGX_TRANSFORMERS_CONFIG,
+  PIPELINE_FACTORY,
+  type PipelineFactory,
+  type PipelineLike,
+} from './transformers.providers';
 
 /** Shape of Transformers.js progress_callback events (subset we consume). */
 interface RawProgressEvent {
@@ -11,6 +22,23 @@ interface RawProgressEvent {
   loaded?: number;
   total?: number;
 }
+
+/** A pipeline callable with the positional extras some tasks take after the input. */
+type Runnable = (...args: unknown[]) => Promise<unknown>;
+
+/**
+ * One load-to-dispose span of a handle. dispose() swaps in a fresh session,
+ * so async work still holding the old one knows it was cancelled and keeps
+ * its bookkeeping (in-flight runs, the loading promise) to itself.
+ */
+interface Session {
+  pipe: PipelineLike | null;
+  loading: Promise<void> | null;
+  /** Runs executing against this session's pipe. */
+  inFlight: number;
+}
+
+const newSession = (): Session => ({ pipe: null, loading: null, inFlight: 0 });
 
 /**
  * A lazily-loaded Transformers.js pipeline wrapped in signals.
@@ -29,8 +57,8 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
   readonly ready = computed(() => this.status() === 'ready' || this.status() === 'busy');
   readonly busy = computed(() => this.status() === 'busy' || this.status() === 'loading');
 
-  private pipe: PipelineLike | null = null;
-  private loading: Promise<void> | null = null;
+  private session = newSession();
+  private destroyed = false;
 
   constructor(
     private readonly request: PipelineRequest,
@@ -40,9 +68,13 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
 
   /** Downloads and initializes the model. Idempotent; retries after error. */
   load(): Promise<void> {
-    if (this.pipe) return Promise.resolve();
-    this.loading ??= this.doLoad().finally(() => (this.loading = null));
-    return this.loading;
+    if (this.destroyed) return Promise.reject(destroyedError());
+    const session = this.session;
+    if (session.pipe) return Promise.resolve();
+    session.loading ??= this.doLoad(session).finally(() => {
+      session.loading = null;
+    });
+    return session.loading;
   }
 
   /** Runs the pipeline, loading the model first if needed. */
@@ -57,43 +89,76 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
    */
   protected async runWith(input: TIn, ...extraArgs: unknown[]): Promise<TOut> {
     await this.load();
+    const session = this.session;
+    const pipe = session.pipe;
+    if (!pipe) {
+      throw new Error('PipelineHandle: disposed before the model finished loading.');
+    }
+    session.inFlight++;
     this.status.set('busy');
     try {
-      const pipe = this.pipe! as (...args: unknown[]) => Promise<unknown>;
-      return (await pipe(input, ...extraArgs)) as TOut;
+      return (await (pipe as Runnable)(input, ...extraArgs)) as TOut;
     } finally {
-      // A failed run leaves the model intact - back to ready either way.
-      this.status.set('ready');
+      // Back to ready once the last overlapping run finishes - a failed run
+      // leaves the model intact. A run that outlived dispose() settles its
+      // own, retired session and leaves the status alone.
+      session.inFlight--;
+      if (session.inFlight === 0 && this.session === session) this.status.set('ready');
     }
   }
 
-  /** Frees the model. The handle can be loaded again afterwards. */
+  /**
+   * Frees the model. A download still in flight is cancelled: its model is
+   * released on arrival and the handle stays idle. The handle can be loaded
+   * again afterwards; destroy() is the terminal variant.
+   */
   async dispose(): Promise<void> {
-    const pipe = this.pipe;
-    this.pipe = null;
+    const session = this.session;
+    this.session = newSession();
     this.status.set('idle');
     this.progress.set(null);
-    await pipe?.dispose?.();
+    await session.pipe?.dispose?.();
   }
 
-  private async doLoad(): Promise<void> {
+  /**
+   * dispose() for good: later load() and run() calls reject instead of
+   * downloading a model nobody would release. create*() registers this with
+   * the DestroyRef of the injection context, so a handle declared in a
+   * component ends with the component.
+   */
+  destroy(): Promise<void> {
+    this.destroyed = true;
+    return this.dispose();
+  }
+
+  private async doLoad(session: Session): Promise<void> {
     this.status.set('loading');
     this.error.set(null);
     const options: Record<string, unknown> = {
       ...this.config.pipelineOptions,
       ...this.request.options,
-      progress_callback: (event: RawProgressEvent) => this.onProgress(event),
+      progress_callback: (event: RawProgressEvent) => this.onProgress(event, session),
     };
     const device = await this.resolveDevice();
+    // Disposed while probing the device: do not start the download at all.
+    if (this.session !== session) return;
     const dtype = this.request.dtype ?? this.config.dtype;
     if (device && device !== 'auto') options['device'] = device;
     if (dtype) options['dtype'] = dtype;
 
     try {
-      this.pipe = await this.factory(this.request.task, this.request.model, options);
+      const pipe = await this.factory(this.request.task, this.request.model, options);
+      if (this.session !== session) {
+        // Disposed while downloading: nobody wants this model any more.
+        await pipe.dispose?.();
+        return;
+      }
+      session.pipe = pipe;
       this.progress.set(null);
       this.status.set('ready');
     } catch (err) {
+      // A cancelled load is not an error - dispose() already reset the handle.
+      if (this.session !== session) return;
       this.error.set(err);
       this.status.set('error');
       throw err;
@@ -110,7 +175,9 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
     return this.config.autoDevice ? detectDevice() : configured;
   }
 
-  private onProgress(event: RawProgressEvent): void {
+  private onProgress(event: RawProgressEvent, session: Session): void {
+    // Events from a load that dispose() cancelled must not resurrect the bar.
+    if (this.session !== session) return;
     if (event.status !== 'progress' || !event.file) return;
     this.progress.set({
       file: event.file,
@@ -121,17 +188,23 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
   }
 }
 
+function destroyedError(): Error {
+  return new Error('PipelineHandle: destroyed with its component; create a new handle.');
+}
+
 /**
  * Creates a PipelineHandle in an injection context (constructor, field
- * initializer, or runInInjectionContext). The handle is disposed with the
+ * initializer, or runInInjectionContext). The handle is destroyed with the
  * surrounding component/injector.
  */
-export function createPipeline<TIn = unknown, TOut = unknown>(request: PipelineRequest): PipelineHandle<TIn, TOut> {
+export function createPipeline<TIn = unknown, TOut = unknown>(
+  request: PipelineRequest,
+): PipelineHandle<TIn, TOut> {
   const handle = new PipelineHandle<TIn, TOut>(
     request,
     inject(PIPELINE_FACTORY),
     inject(NGX_TRANSFORMERS_CONFIG),
   );
-  inject(DestroyRef, { optional: true })?.onDestroy(() => void handle.dispose());
+  inject(DestroyRef, { optional: true })?.onDestroy(() => void handle.destroy());
   return handle;
 }

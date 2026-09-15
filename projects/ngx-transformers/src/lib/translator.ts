@@ -1,7 +1,15 @@
 import { DestroyRef, computed, inject, signal } from '@angular/core';
 import { PipelineHandle } from './pipeline';
-import type { NgxTransformersConfig, TranslateOptions, TranslatorOptions } from './transformers.models';
-import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY, type PipelineFactory } from './transformers.providers';
+import type {
+  NgxTransformersConfig,
+  TranslateOptions,
+  TranslatorOptions,
+} from './transformers.models';
+import {
+  NGX_TRANSFORMERS_CONFIG,
+  PIPELINE_FACTORY,
+  type PipelineFactory,
+} from './transformers.providers';
 
 /**
  * Default checkpoint for a language pair: Helsinki-NLP's Marian opus-mt
@@ -12,7 +20,11 @@ export function defaultTranslationModel(from: string, to: string): string {
 }
 
 /** Checkpoint for a pair: provideTransformers({ translationModels }) first, then opus-mt. */
-export function resolveTranslationModel(from: string, to: string, config: NgxTransformersConfig): string {
+export function resolveTranslationModel(
+  from: string,
+  to: string,
+  config: NgxTransformersConfig,
+): string {
   return config.translationModels?.[`${from}-${to}`] ?? defaultTranslationModel(from, to);
 }
 
@@ -41,6 +53,7 @@ export type TranslationHandle = PipelineHandle<string, RawTranslation | RawTrans
 export class Translator {
   private readonly active = signal<TranslationHandle | null>(null);
   private readonly handles = new Map<string, TranslationHandle>();
+  private destroyed = false;
 
   readonly status = computed(() => this.active()?.status() ?? 'idle');
   readonly progress = computed(() => this.active()?.progress() ?? null);
@@ -55,7 +68,7 @@ export class Translator {
   ) {}
 
   /** Downloads the model for a pair ahead of the first translate() call. */
-  load(pair: TranslateOptions = {}): Promise<void> {
+  async load(pair: TranslateOptions = {}): Promise<void> {
     return this.handleFor(pair).load();
   }
 
@@ -85,11 +98,20 @@ export class Translator {
    * keep several pairs warm and want a progress line per model.
    */
   handleFor(pair: TranslateOptions = {}): TranslationHandle {
+    if (this.destroyed) {
+      throw new Error('Translator: destroyed with its component; create a new translator.');
+    }
     const model = this.modelFor(pair);
     let handle = this.handles.get(model);
     if (!handle) {
       handle = new PipelineHandle(
-        { task: 'translation', model, device: this.options.device, dtype: this.options.dtype, options: this.options.options },
+        {
+          task: 'translation',
+          model,
+          device: this.options.device,
+          dtype: this.options.dtype,
+          options: this.options.options,
+        },
         this.factory,
         this.config,
       );
@@ -97,6 +119,15 @@ export class Translator {
     }
     this.active.set(handle);
     return handle;
+  }
+
+  /**
+   * dispose() for good: later calls reject instead of loading a model nobody
+   * would release. createTranslator() registers this with the DestroyRef.
+   */
+  destroy(): Promise<void> {
+    this.destroyed = true;
+    return this.dispose();
   }
 
   /** Frees every model. The translator can be used again afterwards. */
@@ -121,7 +152,11 @@ export class Translator {
 
 /** Creates a Translator in an injection context. */
 export function createTranslator(options: TranslatorOptions = {}): Translator {
-  const translator = new Translator(options, inject(PIPELINE_FACTORY), inject(NGX_TRANSFORMERS_CONFIG));
-  inject(DestroyRef, { optional: true })?.onDestroy(() => void translator.dispose());
+  const translator = new Translator(
+    options,
+    inject(PIPELINE_FACTORY),
+    inject(NGX_TRANSFORMERS_CONFIG),
+  );
+  inject(DestroyRef, { optional: true })?.onDestroy(() => void translator.destroy());
   return translator;
 }
