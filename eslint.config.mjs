@@ -31,7 +31,17 @@ export default defineConfig(
       ],
       '@angular-eslint/component-selector': [
         'error',
-        { type: 'element', prefix: ['ngx', 'app', 'story'], style: 'kebab-case' },
+        { type: 'element', prefix: ['ngx', 'app'], style: 'kebab-case' },
+      ],
+    },
+  },
+  {
+    // Storybook story components live next to the library but are not part of it.
+    files: ['**/*.stories.ts'],
+    rules: {
+      '@angular-eslint/component-selector': [
+        'error',
+        { type: 'element', prefix: 'story', style: 'kebab-case' },
       ],
     },
   },
