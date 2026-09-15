@@ -8,6 +8,8 @@ import {
   createSpeechRecognizer,
   createTextClassifier,
   createTextEmbedder,
+  createTranslator,
+  createZeroShotClassifier,
 } from 'ngx-transformers';
 
 @Component({
@@ -106,6 +108,52 @@ This library makes on-device ML in Angular an absolute joy.</textarea>
         }
         @if (transcript(); as t) {
           <blockquote class="transcript">{{ t.text || '(nothing recognized)' }}</blockquote>
+        }
+      </section>
+      <section class="card">
+        <h2>Zero-shot classification</h2>
+        <p class="sub">MobileBERT MNLI - ~26 MB once, then cached; any labels, no fine-tuning</p>
+        <textarea #zeroShotInput rows="3" [disabled]="zeroShot.busy()">
+My invoice shows a charge I never made.</textarea>
+        <input
+          #labelsInput
+          type="text"
+          [disabled]="zeroShot.busy()"
+          value="billing, bug report, feature request"
+          (keydown.enter)="classifyZeroShot(zeroShotInput.value, labelsInput.value)"
+        />
+        <div class="row">
+          <button
+            (click)="classifyZeroShot(zeroShotInput.value, labelsInput.value)"
+            [disabled]="zeroShot.busy()"
+          >
+            {{ zeroShot.ready() ? 'Classify' : 'Load model & classify' }}
+          </button>
+          <ngx-model-progress [status]="zeroShot.status()" [progress]="zeroShot.progress()" />
+        </div>
+        <ul class="docs">
+          @for (r of zeroShotResults(); track r.label) {
+            <li>
+              <span class="chip">{{ (r.score * 100).toFixed(1) }}%</span>
+              {{ r.label }}
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>Translation</h2>
+        <p class="sub">opus-mt en-de - ~105 MB once, then cached; one model per language pair</p>
+        <textarea #translateInput rows="3" [disabled]="translator.busy()">
+The model runs entirely in the browser.</textarea>
+        <div class="row">
+          <button (click)="translate(translateInput.value)" [disabled]="translator.busy()">
+            {{ translator.ready() ? 'Translate to German' : 'Load model & translate' }}
+          </button>
+          <ngx-model-progress [status]="translator.status()" [progress]="translator.progress()" />
+        </div>
+        @if (translation(); as t) {
+          <blockquote class="transcript">{{ t }}</blockquote>
         }
       </section>
     </main>
@@ -282,10 +330,14 @@ export class App {
   readonly embedder = createTextEmbedder();
   readonly whisper = createSpeechRecognizer();
   readonly mic = createMicRecorder();
+  readonly zeroShot = createZeroShotClassifier();
+  readonly translator = createTranslator({ from: 'en', to: 'de' });
 
   readonly sentiment = signal<ClassificationResult | null>(null);
   readonly results = signal<{ text: string; score: number | null }[] | null>(null);
   readonly transcript = signal<Transcription | null>(null);
+  readonly zeroShotResults = signal<ClassificationResult[]>([]);
+  readonly translation = signal<string | null>(null);
   readonly sampleUrl =
     'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/jfk.wav';
 
@@ -317,6 +369,22 @@ export class App {
   async transcribeSample(): Promise<void> {
     this.transcript.set(null);
     this.transcript.set(await this.whisper.transcribe(this.sampleUrl));
+  }
+
+  async classifyZeroShot(text: string, labels: string): Promise<void> {
+    const candidates = labels
+      .split(',')
+      .map((label) => label.trim())
+      .filter(Boolean);
+    if (!text.trim() || candidates.length === 0) return;
+    this.zeroShotResults.set([]);
+    this.zeroShotResults.set(await this.zeroShot.classify(text, candidates));
+  }
+
+  async translate(text: string): Promise<void> {
+    if (!text.trim()) return;
+    this.translation.set(null);
+    this.translation.set(await this.translator.translate(text));
   }
 
   async toggleDictation(): Promise<void> {
