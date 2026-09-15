@@ -13,7 +13,7 @@ const ranked = await this.embedder.rank('how do I make my app faster?', docs);
 // [{ text: 'Use trackBy and virtual scrolling...', score: 0.28, index: 2 }, ...]
 ```
 
-Try it: [semantic search story](/storybook/?path=/story/transformers-ngxtransformers--semantic-search-live){target="_self"}.
+Try it: <SiteLink to="/storybook/?path=/story/transformers-ngxtransformers--semantic-search-live">semantic search story</SiteLink>.
 
 ## API
 

@@ -13,7 +13,7 @@ const [top] = await this.classifier.classify('This library makes on-device ML in
 const all = await this.classifier.classify(text, 2); // every label, best first
 ```
 
-Try it: [sentiment analysis story](/storybook/?path=/story/transformers-ngxtransformers--sentiment-analysis-live){target="_self"}.
+Try it: <SiteLink to="/storybook/?path=/story/transformers-ngxtransformers--sentiment-analysis-live">sentiment analysis story</SiteLink>.
 
 ## API
 
