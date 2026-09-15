@@ -5,7 +5,10 @@ import type { NgxTransformersConfig } from './transformers.models';
  * The callable returned by Transformers.js pipeline(), reduced to the
  * surface this library relies on.
  */
-export type PipelineLike = ((input: unknown, options?: Record<string, unknown>) => Promise<unknown>) & {
+export type PipelineLike = ((
+  input: unknown,
+  options?: Record<string, unknown>,
+) => Promise<unknown>) & {
   dispose?: () => Promise<void>;
 };
 
@@ -29,15 +32,21 @@ const defaultPipelineFactory: PipelineFactory = async (task, model, options) => 
   return pipe as PipelineLike;
 };
 
-export const PIPELINE_FACTORY = new InjectionToken<PipelineFactory>('ngx-transformers.pipeline-factory', {
-  providedIn: 'root',
-  factory: () => defaultPipelineFactory,
-});
+export const PIPELINE_FACTORY = new InjectionToken<PipelineFactory>(
+  'ngx-transformers.pipeline-factory',
+  {
+    providedIn: 'root',
+    factory: () => defaultPipelineFactory,
+  },
+);
 
-export const NGX_TRANSFORMERS_CONFIG = new InjectionToken<NgxTransformersConfig>('ngx-transformers.config', {
-  providedIn: 'root',
-  factory: () => ({}),
-});
+export const NGX_TRANSFORMERS_CONFIG = new InjectionToken<NgxTransformersConfig>(
+  'ngx-transformers.config',
+  {
+    providedIn: 'root',
+    factory: () => ({}),
+  },
+);
 
 /**
  * Sets workspace-wide defaults (device, dtype, extra pipeline options):

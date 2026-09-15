@@ -1,6 +1,11 @@
 import { DestroyRef, inject } from '@angular/core';
 import { PipelineHandle } from './pipeline';
-import type { PipelineRequest, TranscribeOptions, Transcription, TranscriptionChunk } from './transformers.models';
+import type {
+  PipelineRequest,
+  TranscribeOptions,
+  Transcription,
+  TranscriptionChunk,
+} from './transformers.models';
 import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY } from './transformers.providers';
 
 // onnx-community, not the legacy Xenova export: the old ONNX decoder lacks
@@ -27,7 +32,9 @@ export async function decodeAudio(
 ): Promise<Float32Array> {
   const AudioContextCtor = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext;
   if (!AudioContextCtor) {
-    throw new Error('decodeAudio requires a browser AudioContext (not available in this environment).');
+    throw new Error(
+      'decodeAudio requires a browser AudioContext (not available in this environment).',
+    );
   }
   const buffer = source instanceof Blob ? await source.arrayBuffer() : source;
   const ctx = new AudioContextCtor({ sampleRate: targetSampleRate });
@@ -50,7 +57,10 @@ export async function decodeAudio(
  * (~41 MB q8, English-only); swap `model` for a multilingual or larger one
  * (e.g. Xenova/whisper-small).
  */
-export class SpeechRecognizer extends PipelineHandle<string | Float32Array, RawTranscription | RawTranscription[]> {
+export class SpeechRecognizer extends PipelineHandle<
+  string | Float32Array,
+  RawTranscription | RawTranscription[]
+> {
   /**
    * Transcribes audio: a URL, a decoded 16 kHz Float32Array, or an encoded
    * Blob/ArrayBuffer (decoded via decodeAudio first - browser-only).
@@ -63,7 +73,8 @@ export class SpeechRecognizer extends PipelineHandle<string | Float32Array, RawT
       audio instanceof Blob || audio instanceof ArrayBuffer ? await decodeAudio(audio) : audio;
 
     const runOptions: Record<string, unknown> = {};
-    if (options.returnTimestamps !== undefined) runOptions['return_timestamps'] = options.returnTimestamps;
+    if (options.returnTimestamps !== undefined)
+      runOptions['return_timestamps'] = options.returnTimestamps;
     if (options.chunkLengthS !== undefined) runOptions['chunk_length_s'] = options.chunkLengthS;
     if (options.strideLengthS !== undefined) runOptions['stride_length_s'] = options.strideLengthS;
     if (options.language !== undefined) runOptions['language'] = options.language;
@@ -87,7 +98,9 @@ export class SpeechRecognizer extends PipelineHandle<string | Float32Array, RawT
  * decoders fail session creation on the v4 WASM runtime
  * (huggingface/transformers.js#1707), while q4 loads and runs everywhere.
  */
-export function createSpeechRecognizer(options: Partial<Omit<PipelineRequest, 'task'>> = {}): SpeechRecognizer {
+export function createSpeechRecognizer(
+  options: Partial<Omit<PipelineRequest, 'task'>> = {},
+): SpeechRecognizer {
   const recognizer = new SpeechRecognizer(
     { task: 'automatic-speech-recognition', model: DEFAULT_ASR_MODEL, dtype: 'q4', ...options },
     inject(PIPELINE_FACTORY),

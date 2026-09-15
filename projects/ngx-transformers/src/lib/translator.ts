@@ -1,7 +1,15 @@
 import { DestroyRef, computed, inject, signal } from '@angular/core';
 import { PipelineHandle } from './pipeline';
-import type { NgxTransformersConfig, TranslateOptions, TranslatorOptions } from './transformers.models';
-import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY, type PipelineFactory } from './transformers.providers';
+import type {
+  NgxTransformersConfig,
+  TranslateOptions,
+  TranslatorOptions,
+} from './transformers.models';
+import {
+  NGX_TRANSFORMERS_CONFIG,
+  PIPELINE_FACTORY,
+  type PipelineFactory,
+} from './transformers.providers';
 
 /**
  * Default checkpoint for a language pair: Helsinki-NLP's Marian opus-mt
@@ -12,7 +20,11 @@ export function defaultTranslationModel(from: string, to: string): string {
 }
 
 /** Checkpoint for a pair: provideTransformers({ translationModels }) first, then opus-mt. */
-export function resolveTranslationModel(from: string, to: string, config: NgxTransformersConfig): string {
+export function resolveTranslationModel(
+  from: string,
+  to: string,
+  config: NgxTransformersConfig,
+): string {
   return config.translationModels?.[`${from}-${to}`] ?? defaultTranslationModel(from, to);
 }
 
@@ -89,7 +101,13 @@ export class Translator {
     let handle = this.handles.get(model);
     if (!handle) {
       handle = new PipelineHandle(
-        { task: 'translation', model, device: this.options.device, dtype: this.options.dtype, options: this.options.options },
+        {
+          task: 'translation',
+          model,
+          device: this.options.device,
+          dtype: this.options.dtype,
+          options: this.options.options,
+        },
         this.factory,
         this.config,
       );
@@ -121,7 +139,11 @@ export class Translator {
 
 /** Creates a Translator in an injection context. */
 export function createTranslator(options: TranslatorOptions = {}): Translator {
-  const translator = new Translator(options, inject(PIPELINE_FACTORY), inject(NGX_TRANSFORMERS_CONFIG));
+  const translator = new Translator(
+    options,
+    inject(PIPELINE_FACTORY),
+    inject(NGX_TRANSFORMERS_CONFIG),
+  );
   inject(DestroyRef, { optional: true })?.onDestroy(() => void translator.dispose());
   return translator;
 }

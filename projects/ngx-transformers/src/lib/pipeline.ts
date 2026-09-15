@@ -1,7 +1,18 @@
 import { DestroyRef, computed, inject, signal } from '@angular/core';
 import { detectDevice } from './device-detection';
-import type { ModelProgress, NgxTransformersConfig, PipelineRequest, PipelineStatus, TransformersDevice } from './transformers.models';
-import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY, type PipelineFactory, type PipelineLike } from './transformers.providers';
+import type {
+  ModelProgress,
+  NgxTransformersConfig,
+  PipelineRequest,
+  PipelineStatus,
+  TransformersDevice,
+} from './transformers.models';
+import {
+  NGX_TRANSFORMERS_CONFIG,
+  PIPELINE_FACTORY,
+  type PipelineFactory,
+  type PipelineLike,
+} from './transformers.providers';
 
 /** Shape of Transformers.js progress_callback events (subset we consume). */
 interface RawProgressEvent {
@@ -126,7 +137,9 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
  * initializer, or runInInjectionContext). The handle is disposed with the
  * surrounding component/injector.
  */
-export function createPipeline<TIn = unknown, TOut = unknown>(request: PipelineRequest): PipelineHandle<TIn, TOut> {
+export function createPipeline<TIn = unknown, TOut = unknown>(
+  request: PipelineRequest,
+): PipelineHandle<TIn, TOut> {
   const handle = new PipelineHandle<TIn, TOut>(
     request,
     inject(PIPELINE_FACTORY),
