@@ -377,3 +377,113 @@ describe('ModelProgressComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Bereit');
   });
 });
+
+describe('PipelineHandle lifecycle races', () => {
+  /** A factory whose pipe arrives only once release() is called (or never, after fail()). */
+  function deferredFactory() {
+    const inner = mockFactory();
+    const options: Record<string, unknown>[] = [];
+    let release!: () => void;
+    let fail!: (err: unknown) => void;
+    const gate = new Promise<void>((resolve, reject) => {
+      release = resolve;
+      fail = reject;
+    });
+    const factory: PipelineFactory = async (task, model, opts) => {
+      options.push(opts);
+      await gate;
+      return inner.factory(task, model, opts);
+    };
+    return { factory, release, fail, options, calls: inner.calls, disposed: inner.disposed };
+  }
+
+  it('dispose() during load cancels it: the late model is freed and the handle stays idle', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const loading = handle.load();
+    expect(handle.status()).toBe('loading');
+
+    await handle.dispose();
+    expect(handle.status()).toBe('idle');
+
+    mocks.release();
+    await loading;
+    expect(handle.status()).toBe('idle');
+    expect(handle.ready()).toBe(false);
+    expect(mocks.disposed()).toBe(1);
+
+    // and the handle is usable again afterwards
+    await handle.load();
+    expect(handle.status()).toBe('ready');
+    expect(mocks.calls).toHaveLength(2);
+  });
+
+  it('a run() waiting on a cancelled load rejects instead of using a disposed handle', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const run = handle.run('x');
+    await handle.dispose();
+    mocks.release();
+    await expect(run).rejects.toThrow(/disposed/);
+    expect(handle.status()).toBe('idle');
+  });
+
+  it('progress events from a cancelled load are ignored', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const loading = handle.load();
+    await vi.waitFor(() => expect(mocks.options).toHaveLength(1));
+    const report = mocks.options[0]['progress_callback'] as (event: unknown) => void;
+    report({ status: 'progress', file: 'a.onnx', progress: 10 });
+    expect(handle.progress()?.progress).toBe(10);
+
+    await handle.dispose();
+    report({ status: 'progress', file: 'a.onnx', progress: 50 });
+    expect(handle.progress()).toBeNull();
+
+    mocks.release();
+    await loading;
+  });
+
+  it('a load that fails after dispose() neither throws nor sets the error state', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const loading = handle.load();
+    await handle.dispose();
+    mocks.fail(new Error('network'));
+    await expect(loading).resolves.toBeUndefined();
+    expect(handle.status()).toBe('idle');
+    expect(handle.error()).toBeNull();
+  });
+
+  it('overlapping runs stay busy until the last one finishes', async () => {
+    const finish: (() => void)[] = [];
+    const { factory } = mockFactory(() => new Promise<void>((resolve) => finish.push(resolve)));
+    const handle = handleWith(factory);
+    const first = handle.run('a');
+    const second = handle.run('b');
+    await vi.waitFor(() => expect(finish).toHaveLength(2));
+
+    finish[0]();
+    await first;
+    expect(handle.status()).toBe('busy');
+
+    finish[1]();
+    await second;
+    expect(handle.status()).toBe('ready');
+  });
+
+  it('dispose() during a run leaves the handle idle once the run settles', async () => {
+    const finish: (() => void)[] = [];
+    const { factory } = mockFactory(() => new Promise<void>((resolve) => finish.push(resolve)));
+    const handle = handleWith(factory);
+    const run = handle.run('a');
+    await vi.waitFor(() => expect(finish).toHaveLength(1));
+
+    await handle.dispose();
+    expect(handle.status()).toBe('idle');
+    finish[0]();
+    await run;
+    expect(handle.status()).toBe('idle');
+  });
+});
