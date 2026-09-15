@@ -19,7 +19,13 @@ import type { ModelProgress, PipelineStatus } from './transformers.models';
       <span class="nt-label">{{ label() }}</span>
       @if (status() === 'loading' && progress(); as p) {
         <span class="nt-file">{{ p.file }}</span>
-        <div class="nt-track" role="progressbar" [attr.aria-valuenow]="p.progress" aria-valuemin="0" aria-valuemax="100">
+        <div
+          class="nt-track"
+          role="progressbar"
+          [attr.aria-valuenow]="p.progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
           <div class="nt-fill" [style.width.%]="p.progress"></div>
         </div>
         <span class="nt-pct">{{ p.progress }}%</span>
@@ -36,28 +42,79 @@ import type { ModelProgress, PipelineStatus } from './transformers.models';
       font-size: 12.5px;
       color: var(--nt-ink);
     }
-    .nt-row { display: flex; align-items: center; gap: 8px; }
+    .nt-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     .nt-dot {
-      width: 8px; height: 8px; border-radius: 50%; flex: none;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex: none;
       background: var(--nt-muted);
     }
-    .nt-dot[data-status='loading'] { background: var(--nt-accent); animation: nt-blink 1s ease-in-out infinite; }
-    .nt-dot[data-status='ready'] { background: #22c55e; }
-    .nt-dot[data-status='busy'] { background: #3b82f6; animation: nt-blink 0.7s ease-in-out infinite; }
-    .nt-dot[data-status='error'] { background: #dc2626; }
-    .nt-label { font-weight: 600; }
-    .nt-file { color: var(--nt-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
-    .nt-track {
-      flex: 1; min-width: 60px; height: 6px; border-radius: 3px;
-      background: var(--nt-track); overflow: hidden;
+    .nt-dot[data-status='loading'] {
+      background: var(--nt-accent);
+      animation: nt-blink 1s ease-in-out infinite;
     }
-    .nt-fill { height: 100%; background: var(--nt-accent); border-radius: 3px; transition: width 120ms linear; }
-    .nt-pct { font-variant-numeric: tabular-nums; color: var(--nt-muted); }
-    .nt-error .nt-label { color: #dc2626; }
-    @keyframes nt-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .nt-dot[data-status='ready'] {
+      background: #22c55e;
+    }
+    .nt-dot[data-status='busy'] {
+      background: #3b82f6;
+      animation: nt-blink 0.7s ease-in-out infinite;
+    }
+    .nt-dot[data-status='error'] {
+      background: #dc2626;
+    }
+    .nt-label {
+      font-weight: 600;
+    }
+    .nt-file {
+      color: var(--nt-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 180px;
+    }
+    .nt-track {
+      flex: 1;
+      min-width: 60px;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--nt-track);
+      overflow: hidden;
+    }
+    .nt-fill {
+      height: 100%;
+      background: var(--nt-accent);
+      border-radius: 3px;
+      transition: width 120ms linear;
+    }
+    .nt-pct {
+      font-variant-numeric: tabular-nums;
+      color: var(--nt-muted);
+    }
+    .nt-error .nt-label {
+      color: #dc2626;
+    }
+    @keyframes nt-blink {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.35;
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
-      .nt-dot { animation: none; }
-      .nt-fill { transition: none; }
+      .nt-dot {
+        animation: none;
+      }
+      .nt-fill {
+        transition: none;
+      }
     }
   `,
 })

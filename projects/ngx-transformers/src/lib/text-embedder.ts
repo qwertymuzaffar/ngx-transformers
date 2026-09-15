@@ -54,7 +54,11 @@ export class TextEmbedder extends PipelineHandle<string | string[], TensorLike> 
     if (documents.length === 0) return [];
     const [queryVec, ...docVecs] = await this.embed([query, ...documents]);
     return docVecs
-      .map((vec, index) => ({ text: documents[index], score: cosineSimilarity(queryVec, vec), index }))
+      .map((vec, index) => ({
+        text: documents[index],
+        score: cosineSimilarity(queryVec, vec),
+        index,
+      }))
       .sort((a, b) => b.score - a.score);
   }
 }
@@ -71,7 +75,9 @@ function toRows(out: TensorLike): number[][] {
 }
 
 /** Creates a TextEmbedder in an injection context. */
-export function createTextEmbedder(options: Partial<Omit<PipelineRequest, 'task'>> = {}): TextEmbedder {
+export function createTextEmbedder(
+  options: Partial<Omit<PipelineRequest, 'task'>> = {},
+): TextEmbedder {
   const embedder = new TextEmbedder(
     { task: 'feature-extraction', model: DEFAULT_EMBEDDING_MODEL, ...options },
     inject(PIPELINE_FACTORY),

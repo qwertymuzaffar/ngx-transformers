@@ -1,7 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { MicRecorder, type RecorderLike } from './mic-recorder';
 import { createSpeechRecognizer, DEFAULT_ASR_MODEL, SpeechRecognizer } from './speech-recognizer';
-import { PIPELINE_FACTORY, type PipelineFactory, type PipelineLike } from './transformers.providers';
+import {
+  PIPELINE_FACTORY,
+  type PipelineFactory,
+  type PipelineLike,
+} from './transformers.providers';
 
 function recognizerWith(output: unknown) {
   const calls: { task: string; model?: string; options?: Record<string, unknown> }[] = [];

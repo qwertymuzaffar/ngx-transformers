@@ -1,14 +1,26 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { PipelineHandle, createPipeline } from './pipeline';
-import { TextClassifier, createTextClassifier, DEFAULT_TEXT_CLASSIFICATION_MODEL } from './text-classifier';
+import {
+  TextClassifier,
+  createTextClassifier,
+  DEFAULT_TEXT_CLASSIFICATION_MODEL,
+} from './text-classifier';
 import { TextEmbedder, cosineSimilarity, createTextEmbedder } from './text-embedder';
 import { ModelProgressComponent } from './model-progress.component';
-import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY, provideTransformers, type PipelineFactory, type PipelineLike } from './transformers.providers';
+import {
+  NGX_TRANSFORMERS_CONFIG,
+  PIPELINE_FACTORY,
+  provideTransformers,
+  type PipelineFactory,
+  type PipelineLike,
+} from './transformers.providers';
 import type { ModelProgress, PipelineStatus } from './transformers.models';
 
 /** Mock factory capturing calls; resolves to a stub pipeline. */
-function mockFactory(impl?: (input: unknown, options?: Record<string, unknown>) => Promise<unknown>) {
+function mockFactory(
+  impl?: (input: unknown, options?: Record<string, unknown>) => Promise<unknown>,
+) {
   const calls: { task: string; model?: string; options: Record<string, unknown> }[] = [];
   const runCalls: { input: unknown; options?: Record<string, unknown> }[] = [];
   let disposed = 0;
@@ -64,7 +76,9 @@ describe('PipelineHandle', () => {
   });
 
   it('run() lazy-loads, passes input, and returns the output', async () => {
-    const { factory, runCalls } = mockFactory(async (input) => [{ label: 'POSITIVE', score: 0.9, input }]);
+    const { factory, runCalls } = mockFactory(async (input) => [
+      { label: 'POSITIVE', score: 0.9, input },
+    ]);
     const handle = handleWith<string, unknown[]>(factory);
     const out = await handle.run('hello', { top_k: 2 });
     expect(handle.status()).toBe('ready');
@@ -125,11 +139,11 @@ describe('PipelineHandle', () => {
 
   it('forwards device/dtype with request overriding global config', async () => {
     const { factory, calls } = mockFactory();
-    const handle = new PipelineHandle(
-      { task: 't', model: 'm', dtype: 'q4' },
-      factory,
-      { device: 'webgpu', dtype: 'q8', pipelineOptions: { cache_dir: '/tmp' } },
-    );
+    const handle = new PipelineHandle({ task: 't', model: 'm', dtype: 'q4' }, factory, {
+      device: 'webgpu',
+      dtype: 'q8',
+      pipelineOptions: { cache_dir: '/tmp' },
+    });
     await handle.load();
     expect(calls[0].options['device']).toBe('webgpu');
     expect(calls[0].options['dtype']).toBe('q4');
@@ -201,13 +215,17 @@ describe('createPipeline / DI wiring', () => {
 describe('TextClassifier', () => {
   function classifierWith(output: unknown): TextClassifier {
     const { factory } = mockFactory(async () => output);
-    TestBed.configureTestingModule({ providers: [{ provide: PIPELINE_FACTORY, useValue: factory }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }],
+    });
     return TestBed.runInInjectionContext(() => createTextClassifier());
   }
 
   it('defaults to the SST-2 sentiment model', () => {
     const { factory, calls } = mockFactory();
-    TestBed.configureTestingModule({ providers: [{ provide: PIPELINE_FACTORY, useValue: factory }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }],
+    });
     const classifier = TestBed.runInInjectionContext(() => createTextClassifier());
     return classifier.load().then(() => {
       expect(calls[0].model).toBe(DEFAULT_TEXT_CLASSIFICATION_MODEL);
@@ -232,14 +250,22 @@ describe('TextClassifier', () => {
 });
 
 describe('TextEmbedder', () => {
-  function embedderWith(output: unknown): { embedder: TextEmbedder; runCalls: { input: unknown; options?: Record<string, unknown> }[] } {
+  function embedderWith(output: unknown): {
+    embedder: TextEmbedder;
+    runCalls: { input: unknown; options?: Record<string, unknown> }[];
+  } {
     const { factory, runCalls } = mockFactory(async () => output);
-    TestBed.configureTestingModule({ providers: [{ provide: PIPELINE_FACTORY, useValue: factory }] });
+    TestBed.configureTestingModule({
+      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }],
+    });
     return { embedder: TestBed.runInInjectionContext(() => createTextEmbedder()), runCalls };
   }
 
   it('embed() requests mean pooling + normalization and reads tensor dims/data', async () => {
-    const { embedder, runCalls } = embedderWith({ dims: [2, 3], data: Float32Array.from([1, 0, 0, 0, 1, 0]) });
+    const { embedder, runCalls } = embedderWith({
+      dims: [2, 3],
+      data: Float32Array.from([1, 0, 0, 0, 1, 0]),
+    });
     const rows = await embedder.embed(['a', 'b']);
     expect(runCalls[0].options).toEqual({ pooling: 'mean', normalize: true });
     expect(rows).toEqual([
@@ -249,7 +275,11 @@ describe('TextEmbedder', () => {
   });
 
   it('embed() prefers tolist() when available and wraps single strings', async () => {
-    const { embedder, runCalls } = embedderWith({ dims: [1, 2], data: [9, 9], tolist: () => [[0.5, 0.5]] });
+    const { embedder, runCalls } = embedderWith({
+      dims: [1, 2],
+      data: [9, 9],
+      tolist: () => [[0.5, 0.5]],
+    });
     const rows = await embedder.embed('solo');
     expect(runCalls[0].input).toEqual(['solo']);
     expect(rows).toEqual([[0.5, 0.5]]);
@@ -315,7 +345,12 @@ describe('ModelProgressComponent', () => {
   });
 
   it('shows file, bar, and percentage while loading', () => {
-    const el = render('loading', { file: 'onnx/model_q8.onnx', progress: 63, loadedBytes: 63, totalBytes: 100 });
+    const el = render('loading', {
+      file: 'onnx/model_q8.onnx',
+      progress: 63,
+      loadedBytes: 63,
+      totalBytes: 100,
+    });
     expect(el.textContent).toContain('Downloading model');
     expect(el.textContent).toContain('onnx/model_q8.onnx');
     expect(el.textContent).toContain('63%');
