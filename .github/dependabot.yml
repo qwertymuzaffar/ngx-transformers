@@ -26,6 +26,16 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # @angular/build pins the vitest major it supports (^4 for Angular 22);
+      # a vitest major bump has to wait for the matching Angular release.
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/*"
+        update-types: ["version-update:semver-major"]
+      # Angular pins the TypeScript range too (>=6.0 <6.1 for Angular 22).
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
