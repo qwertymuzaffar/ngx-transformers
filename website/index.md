@@ -42,6 +42,7 @@ features:
 
 <div class="nt-badges">
   <a href="https://www.npmjs.com/package/ngx-transformers"><img src="https://img.shields.io/npm/v/ngx-transformers" alt="ngx-transformers on npm" /></a>
+  <a href="https://www.npmjs.com/package/ngx-transformers"><img src="https://img.shields.io/npm/dw/ngx-transformers" alt="weekly npm downloads" /></a>
   <a href="https://github.com/qwertymuzaffar/ngx-transformers/actions/workflows/ci.yml"><img src="https://github.com/qwertymuzaffar/ngx-transformers/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
   <img src="https://img.shields.io/npm/l/ngx-transformers" alt="MIT license" />
 </div>
