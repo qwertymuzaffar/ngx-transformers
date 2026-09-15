@@ -45,3 +45,7 @@ Thumbs.db
 
 # Storybook
 storybook-static/
+
+# Copied from the repo root by scripts/sync-package-files.mjs at build time
+/projects/ngx-transformers/README.md
+/projects/ngx-transformers/LICENSE

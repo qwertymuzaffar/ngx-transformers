@@ -6,11 +6,21 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test",
-    "build:lib": "ng build ngx-transformers",
+    "test": "ng test ngx-transformers",
+    "test:ci": "ng test ngx-transformers --no-watch --coverage",
+    "lint": "ng lint",
+    "format": "prettier --write \"projects/**/*.ts\" \".storybook/*.ts\" \"scripts/*.mjs\" eslint.config.mjs",
+    "format:check": "prettier --check \"projects/**/*.ts\" \".storybook/*.ts\" \"scripts/*.mjs\" eslint.config.mjs",
+    "build:lib": "node scripts/sync-package-files.mjs && ng build ngx-transformers",
+    "build:demo": "ng build demo",
+    "storybook": "ng run demo:storybook",
+    "build-storybook": "ng run demo:build-storybook",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "npm run build:lib && changeset publish"
+  },
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
   },
   "private": true,
   "packageManager": "npm@10.9.8",
@@ -30,17 +40,22 @@
     "@angular/build": "^22.1.7",
     "@angular/cli": "^22.1.7",
     "@angular/compiler-cli": "^22.1.0",
+    "@angular/platform-browser-dynamic": "^22.1.5",
+    "@changesets/cli": "^3.0.2",
+    "@eslint/js": "^10.0.1",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/addon-docs": "^10.6.0",
     "@storybook/angular": "^10.6.0",
     "@vitest/coverage-v8": "^4.1.11",
+    "angular-eslint": "^22.5.0",
+    "eslint": "^10.10.0",
     "jsdom": "^28.1.0",
     "ng-packagr": "^22.1.0",
     "prettier": "^3.8.1",
     "storybook": "^10.6.0",
     "typescript": "~6.0.2",
-    "vitest": "^4.1.11",
-    "@changesets/cli": "^3.0.2"
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^4.1.11"
   },
   "workspaces": [
     "projects/ngx-transformers"
