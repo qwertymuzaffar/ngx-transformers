@@ -106,6 +106,6 @@ export function createSpeechRecognizer(
     inject(PIPELINE_FACTORY),
     inject(NGX_TRANSFORMERS_CONFIG),
   );
-  inject(DestroyRef, { optional: true })?.onDestroy(() => void recognizer.dispose());
+  inject(DestroyRef, { optional: true })?.onDestroy(() => void recognizer.destroy());
   return recognizer;
 }

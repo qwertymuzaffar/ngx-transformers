@@ -192,7 +192,7 @@ bootstrapApplication(App, {
 | `cosineSimilarity(a, b)` / `decodeAudio(blob)` | Standalone helpers |
 | `PIPELINE_FACTORY` / `createDefaultPipelineFactory()` | Swap or wrap how pipelines are created |
 
-All `create*` functions must run in an injection context (field initializer, constructor, or `runInInjectionContext`); handles are disposed with the surrounding component.
+All `create*` functions must run in an injection context (field initializer, constructor, or `runInInjectionContext`); handles are destroyed with the surrounding component (the model is released and later calls reject). Call `dispose()` yourself to free a model early and load it again later.
 
 ### PipelineHandle signals
 

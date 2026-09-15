@@ -33,6 +33,6 @@ export function createTextClassifier(
     inject(PIPELINE_FACTORY),
     inject(NGX_TRANSFORMERS_CONFIG),
   );
-  inject(DestroyRef, { optional: true })?.onDestroy(() => void classifier.dispose());
+  inject(DestroyRef, { optional: true })?.onDestroy(() => void classifier.destroy());
   return classifier;
 }

@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { PipelineHandle, createPipeline } from './pipeline';
+import { resetDeviceDetection } from './device-detection';
 import {
   TextClassifier,
   createTextClassifier,
@@ -397,11 +398,19 @@ describe('PipelineHandle lifecycle races', () => {
     return { factory, release, fail, options, calls: inner.calls, disposed: inner.disposed };
   }
 
+  /** A pipe whose runs settle only when the test calls the matching resolver. */
+  function manualRuns() {
+    const finish: (() => void)[] = [];
+    const mocks = mockFactory(() => new Promise<void>((resolve) => finish.push(resolve)));
+    return { ...mocks, finish };
+  }
+
   it('dispose() during load cancels it: the late model is freed and the handle stays idle', async () => {
     const mocks = deferredFactory();
     const handle = handleWith(mocks.factory);
     const loading = handle.load();
     expect(handle.status()).toBe('loading');
+    await vi.waitFor(() => expect(mocks.options).toHaveLength(1)); // the download has started
 
     await handle.dispose();
     expect(handle.status()).toBe('idle');
@@ -449,6 +458,7 @@ describe('PipelineHandle lifecycle races', () => {
     const mocks = deferredFactory();
     const handle = handleWith(mocks.factory);
     const loading = handle.load();
+    await vi.waitFor(() => expect(mocks.options).toHaveLength(1));
     await handle.dispose();
     mocks.fail(new Error('network'));
     await expect(loading).resolves.toBeUndefined();
@@ -456,9 +466,33 @@ describe('PipelineHandle lifecycle races', () => {
     expect(handle.error()).toBeNull();
   });
 
+  it('dispose() during the device probe never starts the download', async () => {
+    let releaseProbe!: () => void;
+    const probe = new Promise<null>((resolve) => (releaseProbe = () => resolve(null)));
+    vi.stubGlobal('navigator', { gpu: { requestAdapter: () => probe } });
+    resetDeviceDetection();
+    try {
+      const mocks = mockFactory();
+      const handle = handleWith(
+        mocks.factory,
+        { task: 'text-classification' },
+        { autoDevice: true },
+      );
+      const loading = handle.load();
+      expect(handle.status()).toBe('loading');
+      await handle.dispose();
+      releaseProbe();
+      await loading;
+      expect(mocks.calls).toHaveLength(0);
+      expect(handle.status()).toBe('idle');
+    } finally {
+      vi.unstubAllGlobals();
+      resetDeviceDetection();
+    }
+  });
+
   it('overlapping runs stay busy until the last one finishes', async () => {
-    const finish: (() => void)[] = [];
-    const { factory } = mockFactory(() => new Promise<void>((resolve) => finish.push(resolve)));
+    const { factory, finish } = manualRuns();
     const handle = handleWith(factory);
     const first = handle.run('a');
     const second = handle.run('b');
@@ -474,8 +508,7 @@ describe('PipelineHandle lifecycle races', () => {
   });
 
   it('dispose() during a run leaves the handle idle once the run settles', async () => {
-    const finish: (() => void)[] = [];
-    const { factory } = mockFactory(() => new Promise<void>((resolve) => finish.push(resolve)));
+    const { factory, finish } = manualRuns();
     const handle = handleWith(factory);
     const run = handle.run('a');
     await vi.waitFor(() => expect(finish).toHaveLength(1));
@@ -485,5 +518,77 @@ describe('PipelineHandle lifecycle races', () => {
     finish[0]();
     await run;
     expect(handle.status()).toBe('idle');
+  });
+
+  it('a run that outlived dispose() does not disturb the reloaded handle', async () => {
+    const { factory, finish } = manualRuns();
+    const handle = handleWith(factory);
+    const orphan = handle.run('a');
+    await vi.waitFor(() => expect(finish).toHaveLength(1));
+
+    await handle.dispose();
+    await handle.load();
+    const first = handle.run('b');
+    const second = handle.run('c');
+    await vi.waitFor(() => expect(finish).toHaveLength(3));
+    expect(handle.status()).toBe('busy');
+
+    finish[0]();
+    await orphan;
+    expect(handle.status()).toBe('busy');
+
+    finish[1]();
+    await first;
+    expect(handle.status()).toBe('busy'); // c is still running
+
+    finish[2]();
+    await second;
+    expect(handle.status()).toBe('ready');
+  });
+
+  it('destroy() disposes and rejects later load() and run(); dispose() allows a reload', async () => {
+    const mocks = mockFactory();
+    const handle = handleWith(mocks.factory);
+    await handle.load();
+    await handle.destroy();
+    expect(handle.status()).toBe('idle');
+    expect(mocks.disposed()).toBe(1);
+    await expect(handle.load()).rejects.toThrow(/destroyed/);
+    await expect(handle.run('x')).rejects.toThrow(/destroyed/);
+    expect(mocks.calls).toHaveLength(1);
+  });
+
+  it('a preload chained into run() cannot resurrect the model after destroy()', async () => {
+    const mocks = deferredFactory();
+    const handle = handleWith(mocks.factory);
+    const chain = handle.load().then(() => handle.run('x'));
+    await vi.waitFor(() => expect(mocks.options).toHaveLength(1));
+    await handle.destroy();
+    mocks.release();
+    await expect(chain).rejects.toThrow(/destroyed/);
+    expect(mocks.calls).toHaveLength(1);
+    expect(mocks.disposed()).toBe(1);
+    expect(handle.status()).toBe('idle');
+  });
+
+  it('a handle created in a component is destroyed for good with it', async () => {
+    const mocks = mockFactory();
+
+    @Component({ template: '' })
+    class HostComponent {
+      readonly handle = createPipeline({ task: 't' });
+    }
+
+    TestBed.configureTestingModule({
+      imports: [HostComponent],
+      providers: [{ provide: PIPELINE_FACTORY, useValue: mocks.factory }],
+    });
+    const fixture = TestBed.createComponent(HostComponent);
+    const handle = fixture.componentInstance.handle;
+    await handle.load();
+    fixture.destroy();
+    await Promise.resolve();
+    await expect(handle.run('x')).rejects.toThrow(/destroyed/);
+    expect(mocks.calls).toHaveLength(1);
   });
 });
