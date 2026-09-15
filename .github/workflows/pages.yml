@@ -17,14 +17,14 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm ci --legacy-peer-deps
-      - run: npx ng build ngx-transformers
-      - run: npx ng run demo:build-storybook
+      - run: npm ci
+      - run: npm run build:lib
+      - run: npm run build-storybook
         env:
           CI: "true"
       - uses: actions/configure-pages@v5
