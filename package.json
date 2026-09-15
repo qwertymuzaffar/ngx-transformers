@@ -52,7 +52,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "angular-eslint": "^22.5.0",
     "eslint": "^10.10.0",
-    "jsdom": "^28.1.0",
+    "jsdom": "^30.0.1",
     "ng-packagr": "^22.1.0",
     "prettier": "^3.8.1",
     "storybook": "^10.6.0",
