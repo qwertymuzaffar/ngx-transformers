@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitepress';
 import apiSidebar from '../api/typedoc-sidebar.json';
 
+// PAGES_BASE is the path the site is served from; scripts/build-pages.mjs passes it through.
+const base = (process.env.PAGES_BASE ?? '/ngx-transformers/').replace(/\/?$/, '/');
 const site = 'https://qwertymuzaffar.github.io/ngx-transformers/';
 const repo = 'https://github.com/qwertymuzaffar/ngx-transformers';
 const description =
@@ -9,11 +11,11 @@ const description =
 export default defineConfig({
   title: 'ngx-transformers',
   description,
-  base: '/ngx-transformers/',
+  base,
   lastUpdated: false,
   cleanUrls: true,
   head: [
-    ['link', { rel: 'icon', href: '/ngx-transformers/favicon.svg' }],
+    ['link', { rel: 'icon', href: `${base}favicon.svg` }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'ngx-transformers' }],
     ['meta', { property: 'og:title', content: 'ngx-transformers: on-device ML for Angular' }],

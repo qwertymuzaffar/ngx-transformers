@@ -18,10 +18,11 @@ const run = (command, env = {}) => {
   });
 };
 
+// The same npm scripts CI runs, so the deployed site cannot drift from what CI checks.
 run('npm run build:lib');
-run('npm run build -w website');
-run(`npx ng build demo --base-href ${base}demo/`);
-run('npx ng run demo:build-storybook', { CI: 'true' });
+run('npm run docs:build', { PAGES_BASE: base });
+run(`npm run build:demo -- --base-href ${base}demo/`);
+run('npm run build-storybook', { CI: 'true' });
 
 rmSync(site, { recursive: true, force: true });
 mkdirSync(site, { recursive: true });
