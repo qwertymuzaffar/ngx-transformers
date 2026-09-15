@@ -49,3 +49,9 @@ storybook-static/
 # Copied from the repo root by scripts/sync-package-files.mjs at build time
 /projects/ngx-transformers/README.md
 /projects/ngx-transformers/LICENSE
+
+# Docs site: generated API pages, VitePress output, assembled Pages output
+/website/api/
+/website/.vitepress/dist/
+/website/.vitepress/cache/
+/_site

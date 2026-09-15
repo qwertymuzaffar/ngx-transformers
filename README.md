@@ -6,7 +6,7 @@
 
 Run Hugging Face [Transformers.js](https://github.com/huggingface/transformers.js) models in Angular - **on-device ML with a signals API**. Text classification, zero-shot classification, sentence embeddings, semantic search, translation, and Whisper speech-to-text that execute entirely in the browser: no server, no API key, works offline once the model is cached.
 
-**[Live demo (Storybook)](https://qwertymuzaffar.github.io/ngx-transformers/)** - loads real models in your browser.
+**[Documentation](https://qwertymuzaffar.github.io/ngx-transformers/)** · [Demo app](https://qwertymuzaffar.github.io/ngx-transformers/demo/) · [Storybook](https://qwertymuzaffar.github.io/ngx-transformers/storybook/) - the demos load real models in your browser.
 
 ## Why
 

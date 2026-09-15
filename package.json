@@ -15,6 +15,9 @@
     "build:demo": "ng build demo",
     "storybook": "ng run demo:storybook",
     "build-storybook": "ng run demo:build-storybook",
+    "docs:dev": "npm run dev -w website",
+    "docs:build": "npm run build -w website",
+    "build:pages": "node scripts/build-pages.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "npm run build:lib && changeset publish"
@@ -58,6 +61,7 @@
     "vitest": "^4.1.11"
   },
   "workspaces": [
-    "projects/ngx-transformers"
+    "projects/ngx-transformers",
+    "website"
   ]
 }

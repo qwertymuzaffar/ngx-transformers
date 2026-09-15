@@ -5,7 +5,16 @@ import angular from 'angular-eslint';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  globalIgnores(['dist/', 'coverage/', 'storybook-static/', '.angular/']),
+  globalIgnores([
+    'dist/',
+    'coverage/',
+    'storybook-static/',
+    '.angular/',
+    '_site/',
+    'website/api/',
+    'website/.vitepress/cache/',
+    'website/.vitepress/dist/',
+  ]),
   {
     files: ['**/*.ts'],
     extends: [
