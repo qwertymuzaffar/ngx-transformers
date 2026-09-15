@@ -46,12 +46,13 @@ Transformers.js downloads a model's files in parallel (config, tokenizer, ONNX w
 - `load()`: downloads and initialises the model. Idempotent and retryable.
 - `run(input, options?)`: loads if needed, then runs the pipeline. Wrappers expose typed methods (`classify`, `embed`, `translate`, `transcribe`) that call it.
 - `dispose()`: releases the model and returns to `idle`. The handle can be loaded again later.
+- `destroy()`: `dispose()` for good; later calls reject. This is what the component's `DestroyRef` triggers.
 
 ## Disposal
 
-`create*()` registers the handle with the surrounding `DestroyRef`, so a handle declared as a component field is released when that component is destroyed. If a download is still in flight at that point, it is cancelled: the model is released as soon as it arrives, the handle stays `idle`, and a `run()` that was waiting on it rejects.
+`create*()` registers the handle with the surrounding `DestroyRef`, so a handle declared as a component field is destroyed with that component: the model is released, and any later `load()` or `run()` rejects rather than downloading a model nobody would free. If a download is still in flight at that point, it is cancelled: the model is released as soon as it arrives, the handle stays `idle`, and a `run()` that was waiting on it rejects.
 
-Call `dispose()` yourself to free memory early, for example after a one-off job, or when a service outlives the page that used the model.
+Call `dispose()` yourself to free memory early, for example after a one-off job, or when a service outlives the page that used the model. Unlike `destroy()`, a disposed handle loads again on the next call.
 
 ## Concurrency
 

@@ -83,6 +83,6 @@ export function createTextEmbedder(
     inject(PIPELINE_FACTORY),
     inject(NGX_TRANSFORMERS_CONFIG),
   );
-  inject(DestroyRef, { optional: true })?.onDestroy(() => void embedder.dispose());
+  inject(DestroyRef, { optional: true })?.onDestroy(() => void embedder.destroy());
   return embedder;
 }

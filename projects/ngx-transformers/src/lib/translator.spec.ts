@@ -169,3 +169,23 @@ describe('Translator', () => {
     );
   });
 });
+
+describe('Translator destroy()', () => {
+  it('frees every model and rejects later calls; dispose() still allows reuse', async () => {
+    const { translator, calls } = translatorWith([{ translation_text: 'Привет' }], {
+      from: 'en',
+      to: 'ru',
+    });
+    await translator.load();
+    await translator.dispose();
+    await translator.load(); // reusable after dispose()
+    expect(calls).toHaveLength(2);
+
+    await translator.destroy();
+    expect(translator.status()).toBe('idle');
+    await expect(translator.load()).rejects.toThrow(/destroyed/);
+    await expect(translator.translate('Hello')).rejects.toThrow(/destroyed/);
+    expect(() => translator.handleFor()).toThrow(/destroyed/);
+    expect(calls).toHaveLength(2);
+  });
+});
