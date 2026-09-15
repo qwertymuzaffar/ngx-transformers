@@ -23,6 +23,9 @@ interface RawProgressEvent {
   total?: number;
 }
 
+/** A pipeline callable with the positional extras some tasks take after the input. */
+type Runnable = (...args: unknown[]) => Promise<unknown>;
+
 /**
  * A lazily-loaded Transformers.js pipeline wrapped in signals.
  *
@@ -42,6 +45,10 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
 
   private pipe: PipelineLike | null = null;
   private loading: Promise<void> | null = null;
+  /** Bumped by dispose() so a load still in flight knows its result is unwanted. */
+  private generation = 0;
+  /** Runs currently executing; the status returns to ready when the last one finishes. */
+  private inFlight = 0;
 
   constructor(
     private readonly request: PipelineRequest,
@@ -52,7 +59,13 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
   /** Downloads and initializes the model. Idempotent; retries after error. */
   load(): Promise<void> {
     if (this.pipe) return Promise.resolve();
-    this.loading ??= this.doLoad().finally(() => (this.loading = null));
+    if (!this.loading) {
+      const loading = this.doLoad().finally(() => {
+        // Only forget our own promise: dispose() may have started a newer load meanwhile.
+        if (this.loading === loading) this.loading = null;
+      });
+      this.loading = loading;
+    }
     return this.loading;
   }
 
@@ -68,32 +81,46 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
    */
   protected async runWith(input: TIn, ...extraArgs: unknown[]): Promise<TOut> {
     await this.load();
+    const pipe = this.pipe;
+    if (!pipe) {
+      throw new Error('PipelineHandle: disposed before the model finished loading.');
+    }
+    this.inFlight++;
     this.status.set('busy');
     try {
-      const pipe = this.pipe! as (...args: unknown[]) => Promise<unknown>;
-      return (await pipe(input, ...extraArgs)) as TOut;
+      return (await (pipe as Runnable)(input, ...extraArgs)) as TOut;
     } finally {
-      // A failed run leaves the model intact - back to ready either way.
-      this.status.set('ready');
+      // Back to ready once the last overlapping run finishes - a failed run
+      // leaves the model intact. A dispose() mid-run has already reset the status.
+      this.inFlight = Math.max(0, this.inFlight - 1);
+      if (this.inFlight === 0 && this.pipe === pipe) this.status.set('ready');
     }
   }
 
-  /** Frees the model. The handle can be loaded again afterwards. */
+  /**
+   * Frees the model. A download still in flight is cancelled: its model is
+   * released on arrival and the handle stays idle. The handle can be loaded
+   * again afterwards.
+   */
   async dispose(): Promise<void> {
+    this.generation++;
     const pipe = this.pipe;
     this.pipe = null;
+    this.loading = null;
+    this.inFlight = 0;
     this.status.set('idle');
     this.progress.set(null);
     await pipe?.dispose?.();
   }
 
   private async doLoad(): Promise<void> {
+    const generation = this.generation;
     this.status.set('loading');
     this.error.set(null);
     const options: Record<string, unknown> = {
       ...this.config.pipelineOptions,
       ...this.request.options,
-      progress_callback: (event: RawProgressEvent) => this.onProgress(event),
+      progress_callback: (event: RawProgressEvent) => this.onProgress(event, generation),
     };
     const device = await this.resolveDevice();
     const dtype = this.request.dtype ?? this.config.dtype;
@@ -101,10 +128,18 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
     if (dtype) options['dtype'] = dtype;
 
     try {
-      this.pipe = await this.factory(this.request.task, this.request.model, options);
+      const pipe = await this.factory(this.request.task, this.request.model, options);
+      if (generation !== this.generation) {
+        // Disposed while downloading: nobody wants this model any more.
+        await pipe.dispose?.();
+        return;
+      }
+      this.pipe = pipe;
       this.progress.set(null);
       this.status.set('ready');
     } catch (err) {
+      // A cancelled load is not an error - dispose() already reset the handle.
+      if (generation !== this.generation) return;
       this.error.set(err);
       this.status.set('error');
       throw err;
@@ -121,7 +156,9 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
     return this.config.autoDevice ? detectDevice() : configured;
   }
 
-  private onProgress(event: RawProgressEvent): void {
+  private onProgress(event: RawProgressEvent, generation: number): void {
+    // Events from a load that dispose() cancelled must not resurrect the bar.
+    if (generation !== this.generation) return;
     if (event.status !== 'progress' || !event.file) return;
     this.progress.set({
       file: event.file,
