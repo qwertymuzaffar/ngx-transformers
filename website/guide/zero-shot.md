@@ -11,7 +11,7 @@ const scored = await this.classifier.classify(ticket, ['billing', 'bug report', 
 // [{ label: 'bug report', score: 0.91 }, { label: 'billing', score: 0.06 }, { label: 'feature request', score: 0.03 }]
 ```
 
-Try it: [zero-shot story](/storybook/?path=/story/transformers-ngxtransformers--zero-shot-classification-live){target="_self"}.
+Try it: <SiteLink to="/storybook/?path=/story/transformers-ngxtransformers--zero-shot-classification-live">zero-shot story</SiteLink>.
 
 ## API
 

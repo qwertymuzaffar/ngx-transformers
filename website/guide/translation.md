@@ -11,7 +11,7 @@ const russian = await this.translator.translate('The model runs entirely in the 
 const german = await this.translator.translate('Good morning.', { to: 'de' }); // Xenova/opus-mt-en-de, its own download
 ```
 
-Try it: [translation story](/storybook/?path=/story/transformers-ngxtransformers--translation-live){target="_self"}.
+Try it: <SiteLink to="/storybook/?path=/story/transformers-ngxtransformers--translation-live">translation story</SiteLink>.
 
 ## API
 

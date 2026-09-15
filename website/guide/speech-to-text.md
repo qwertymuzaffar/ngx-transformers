@@ -11,7 +11,7 @@ const { text } = await this.whisper.transcribe(file); // a File or Blob from an 
 const { text: t, chunks } = await this.whisper.transcribe(url, { returnTimestamps: true });
 ```
 
-Try it: [speech-to-text story](/storybook/?path=/story/transformers-ngxtransformers--speech-to-text-live){target="_self"} and [dictation story](/storybook/?path=/story/transformers-ngxtransformers--mic-dictation-live){target="_self"}.
+Try it: <SiteLink to="/storybook/?path=/story/transformers-ngxtransformers--speech-to-text-live">speech-to-text story</SiteLink> and <SiteLink to="/storybook/?path=/story/transformers-ngxtransformers--mic-dictation-live">dictation story</SiteLink>.
 
 ## Input
 
