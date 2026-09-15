@@ -22,15 +22,19 @@ export type PipelineFactory = (
   options: Record<string, unknown>,
 ) => Promise<PipelineLike>;
 
-/** The slice of the @huggingface/transformers module the default factory uses. */
+/**
+ * The slice of the @huggingface/transformers module the default factory
+ * uses. The real module satisfies it, so an importer can configure
+ * `env` and return the module as is.
+ */
 export interface TransformersModuleLike {
-  pipeline: (task: string, model?: string, options?: object) => Promise<unknown>;
+  // A method signature on purpose: it keeps the overloaded, generic
+  // pipeline() of the real module assignable.
+  pipeline(task: string, model?: string, options?: object): Promise<unknown>;
 }
 
-const importTransformers = async (): Promise<TransformersModuleLike> => {
-  const { pipeline } = await import('@huggingface/transformers');
-  return { pipeline: pipeline as TransformersModuleLike['pipeline'] };
-};
+const importTransformers = (): Promise<TransformersModuleLike> =>
+  import('@huggingface/transformers');
 
 /**
  * The factory behind PIPELINE_FACTORY. It imports @huggingface/transformers
@@ -44,7 +48,9 @@ const importTransformers = async (): Promise<TransformersModuleLike> => {
  * providers: [{ provide: PIPELINE_FACTORY, useValue: factory }]
  * ```
  *
- * `load` is the importer; tests pass a stub module.
+ * `load` is the importer. Tests pass a stub module; apps that need to
+ * configure Transformers.js (`env.allowRemoteModels`, `env.localModelPath`)
+ * do it there, before returning the module.
  */
 export function createDefaultPipelineFactory(
   load: () => Promise<TransformersModuleLike> = importTransformers,
