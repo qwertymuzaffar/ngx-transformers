@@ -160,6 +160,22 @@ bootstrapApplication(App, {
 
 Per-pipeline `device`/`dtype`/`options` win over the global config. `translationModels` maps a `"from-to"` pair to a checkpoint for `createTranslator()`.
 
+Every handle gets its pipeline from the `PIPELINE_FACTORY` injection token. Provide your own to add options or logging, route work to a Web Worker, or stub models in tests. `createDefaultPipelineFactory()` is the default; it lazy-imports `@huggingface/transformers` on the first pipeline, so wrapping it keeps the initial bundle small:
+
+```ts
+import { PIPELINE_FACTORY, createDefaultPipelineFactory, type PipelineFactory } from 'ngx-transformers';
+
+const base = createDefaultPipelineFactory();
+const logging: PipelineFactory = (task, model, options) => {
+  console.log('loading', task, model);
+  return base(task, model, options);
+};
+
+bootstrapApplication(App, {
+  providers: [{ provide: PIPELINE_FACTORY, useValue: logging }],
+});
+```
+
 ## API
 
 ### Handles
@@ -174,6 +190,7 @@ Per-pipeline `device`/`dtype`/`options` win over the global config. `translation
 | `createTranslator(options?)` | `Translator` - `translate(text, { from?, to? })`, one model per pair, `handleFor(pair)` |
 | `createMicRecorder(deps?)` | `MicRecorder` - mic capture with `recording`/`seconds`/`error` signals |
 | `cosineSimilarity(a, b)` / `decodeAudio(blob)` | Standalone helpers |
+| `PIPELINE_FACTORY` / `createDefaultPipelineFactory()` | Swap or wrap how pipelines are created |
 
 All `create*` functions must run in an injection context (field initializer, constructor, or `runInInjectionContext`); handles are disposed with the surrounding component.
 

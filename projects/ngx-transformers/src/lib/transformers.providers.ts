@@ -22,21 +22,44 @@ export type PipelineFactory = (
   options: Record<string, unknown>,
 ) => Promise<PipelineLike>;
 
-const defaultPipelineFactory: PipelineFactory = async (task, model, options) => {
+/** The slice of the @huggingface/transformers module the default factory uses. */
+export interface TransformersModuleLike {
+  pipeline: (task: string, model?: string, options?: object) => Promise<unknown>;
+}
+
+const importTransformers = async (): Promise<TransformersModuleLike> => {
   const { pipeline } = await import('@huggingface/transformers');
-  const pipe = await (pipeline as (t: string, m?: string, o?: object) => Promise<unknown>)(
-    task,
-    model,
-    options,
-  );
-  return pipe as PipelineLike;
+  return { pipeline: pipeline as TransformersModuleLike['pipeline'] };
 };
+
+/**
+ * The factory behind PIPELINE_FACTORY. It imports @huggingface/transformers
+ * lazily, on the first pipeline, so the library adds nothing to the initial
+ * bundle. Wrap it to add options or logging while keeping the lazy import:
+ *
+ * ```ts
+ * const base = createDefaultPipelineFactory();
+ * const factory: PipelineFactory = (task, model, options) =>
+ *   base(task, model, { ...options, revision: 'v2' });
+ * providers: [{ provide: PIPELINE_FACTORY, useValue: factory }]
+ * ```
+ *
+ * `load` is the importer; tests pass a stub module.
+ */
+export function createDefaultPipelineFactory(
+  load: () => Promise<TransformersModuleLike> = importTransformers,
+): PipelineFactory {
+  return async (task, model, options) => {
+    const { pipeline } = await load();
+    return (await pipeline(task, model, options)) as PipelineLike;
+  };
+}
 
 export const PIPELINE_FACTORY = new InjectionToken<PipelineFactory>(
   'ngx-transformers.pipeline-factory',
   {
     providedIn: 'root',
-    factory: () => defaultPipelineFactory,
+    factory: () => createDefaultPipelineFactory(),
   },
 );
 
