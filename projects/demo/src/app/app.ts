@@ -8,8 +8,10 @@ import {
   createSpeechRecognizer,
   createTextClassifier,
   createTextEmbedder,
+  createTextGenerator,
   createTranslator,
   createZeroShotClassifier,
+  inferenceResource,
 } from 'ngx-transformers';
 
 @Component({
@@ -25,34 +27,36 @@ import {
           no server, no API key.
         </p>
       </div>
-      <div class="hero-note">first run downloads the model, then it is cached</div>
+      <div class="hero-note">
+        first run downloads the model, then it is cached · inference runs in a Web Worker
+      </div>
     </header>
 
     <main>
       <section class="card">
         <h2>Sentiment analysis</h2>
-        <p class="sub">DistilBERT SST-2 - ~65 MB once, then cached</p>
+        <p class="sub">DistilBERT SST-2 - ~65 MB once, then cached; classifies as you type</p>
         <textarea
           #sentimentInput
           rows="3"
-          [disabled]="classifier.busy()"
           placeholder="Type something with an opinion in it..."
-        >
-This library makes on-device ML in Angular an absolute joy.</textarea>
+          [value]="sentimentText()"
+          (input)="sentimentText.set(sentimentInput.value)"
+        ></textarea>
         <div class="row">
-          <button (click)="analyze(sentimentInput.value)" [disabled]="classifier.busy()">
-            {{ classifier.ready() ? 'Analyze' : 'Load model & analyze' }}
-          </button>
           <ngx-model-progress [status]="classifier.status()" [progress]="classifier.progress()" />
         </div>
-        @if (sentiment(); as s) {
+        @if (sentiment.value(); as results) {
           <div
             class="result"
-            [class.positive]="s.label === 'POSITIVE'"
-            [class.negative]="s.label === 'NEGATIVE'"
+            [class.positive]="results[0].label === 'POSITIVE'"
+            [class.negative]="results[0].label === 'NEGATIVE'"
           >
-            {{ s.label }} <span class="score">{{ (s.score * 100).toFixed(1) }}%</span>
+            {{ results[0].label }}
+            <span class="score">{{ (results[0].score * 100).toFixed(1) }}%</span>
           </div>
+        } @else if (sentiment.error(); as err) {
+          <p class="err">{{ err.message }}</p>
         }
       </section>
 
@@ -154,6 +158,21 @@ The model runs entirely in the browser.</textarea>
         </div>
         @if (translation(); as t) {
           <blockquote class="transcript">{{ t }}</blockquote>
+        }
+      </section>
+      <section class="card">
+        <h2>Text generation</h2>
+        <p class="sub">SmolLM2-135M-Instruct - ~100 MB once, then cached; streams as it writes</p>
+        <textarea #promptInput rows="3" [disabled]="generator.busy()">
+Explain what a signal is in Angular, in two sentences.</textarea>
+        <div class="row">
+          <button (click)="generate(promptInput.value)" [disabled]="generator.busy()">
+            {{ generator.ready() ? 'Generate' : 'Load model & generate' }}
+          </button>
+          <ngx-model-progress [status]="generator.status()" [progress]="generator.progress()" />
+        </div>
+        @if (generator.output(); as text) {
+          <blockquote class="transcript">{{ text }}</blockquote>
         }
       </section>
     </main>
@@ -332,8 +351,15 @@ export class App {
   readonly mic = createMicRecorder();
   readonly zeroShot = createZeroShotClassifier();
   readonly translator = createTranslator({ from: 'en', to: 'de' });
+  readonly generator = createTextGenerator();
 
-  readonly sentiment = signal<ClassificationResult | null>(null);
+  readonly sentimentText = signal('');
+  /** Re-runs the classifier whenever the text settles for 400 ms; empty text stays idle. */
+  readonly sentiment = inferenceResource({
+    input: () => this.sentimentText().trim() || undefined,
+    run: (text) => this.classifier.classify(text),
+    debounceMs: 400,
+  });
   readonly results = signal<{ text: string; score: number | null }[] | null>(null);
   readonly transcript = signal<Transcription | null>(null);
   readonly zeroShotResults = signal<ClassificationResult[]>([]);
@@ -353,11 +379,9 @@ export class App {
     return this.results() ?? this.documents.map((text) => ({ text, score: null }));
   }
 
-  async analyze(text: string): Promise<void> {
-    if (!text.trim()) return;
-    this.sentiment.set(null);
-    const [top] = await this.classifier.classify(text);
-    this.sentiment.set(top ?? null);
+  async generate(prompt: string): Promise<void> {
+    if (!prompt.trim()) return;
+    await this.generator.generate([{ role: 'user', content: prompt }], { maxNewTokens: 120 });
   }
 
   async search(query: string): Promise<void> {
