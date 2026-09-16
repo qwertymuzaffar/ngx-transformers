@@ -175,7 +175,7 @@ export interface WorkerScopeLike {
  * Pair it with provideTransformersWorker() on the main thread.
  */
 export function runTransformersWorker(
-  scope: WorkerScopeLike = globalThis as unknown as WorkerScopeLike,
+  scope: WorkerScopeLike = workerGlobalScope(),
   load?: () => Promise<WorkerTransformersModule>,
 ): WorkerHost {
   const host = createTransformersWorkerHost({
@@ -184,4 +184,18 @@ export function runTransformersWorker(
   });
   scope.onmessage = (event) => void host.handle(event.data as WorkerRequest);
   return host;
+}
+
+/**
+ * The current worker's global scope. On the main thread this would hook
+ * window.onmessage, which any origin can post to, so refuse instead.
+ */
+function workerGlobalScope(): WorkerScopeLike {
+  const global = globalThis as { WorkerGlobalScope?: unknown };
+  if (global.WorkerGlobalScope === undefined) {
+    throw new Error(
+      'runTransformersWorker() must run inside a Web Worker file; on the main thread use provideTransformersWorker().',
+    );
+  }
+  return globalThis as unknown as WorkerScopeLike;
 }

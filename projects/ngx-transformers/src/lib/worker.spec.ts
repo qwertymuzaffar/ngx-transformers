@@ -224,6 +224,10 @@ describe('worker pipeline factory + host', () => {
     await vi.waitFor(() => expect(posted[2]).toMatchObject({ type: 'error', id: 9 }));
   });
 
+  it('runTransformersWorker() refuses to hook the main thread', () => {
+    expect(() => runTransformersWorker()).toThrow(/inside a Web Worker/);
+  });
+
   it('provideTransformersWorker() makes every handle run in the worker', async () => {
     const fake = fakeModule({
       run: async (...args) => {
