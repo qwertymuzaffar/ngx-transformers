@@ -30,7 +30,8 @@ export interface OverallProgress {
 }
 
 export type TransformersDevice = 'wasm' | 'webgpu' | 'auto';
-export type TransformersDtype = 'fp32' | 'fp16' | 'q8' | 'q4';
+/** Weight formats Transformers.js can load; a checkpoint must ship the one you ask for. */
+export type TransformersDtype = 'fp32' | 'fp16' | 'q8' | 'int8' | 'uint8' | 'q4' | 'bnb4' | 'q4f16';
 
 /** Global defaults applied to every pipeline; see provideTransformers(). */
 export interface NgxTransformersConfig {
@@ -126,3 +127,22 @@ export interface TranslatorOptions extends Partial<Omit<PipelineRequest, 'task'>
   to?: string;
 }
 
+/** One turn of a chat prompt for TextGenerator. */
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+/** Options for TextGenerator.generate(). */
+export interface GenerateOptions {
+  /** Upper bound on generated tokens; default 256. */
+  maxNewTokens?: number;
+  /** Sample instead of greedy decoding; set with temperature / topP / topK. */
+  doSample?: boolean;
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+  repetitionPenalty?: number;
+  /** Called with each piece of text as it is generated. */
+  onToken?: (text: string) => void;
+}

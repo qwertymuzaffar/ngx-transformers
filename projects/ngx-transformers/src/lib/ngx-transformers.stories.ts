@@ -5,6 +5,7 @@ import { ModelProgressComponent } from './model-progress.component';
 import { createSpeechRecognizer } from './speech-recognizer';
 import { createTextClassifier } from './text-classifier';
 import { createTextEmbedder } from './text-embedder';
+import { createTextGenerator } from './text-generator';
 import { createTranslator } from './translator';
 import type { ClassificationResult, Transcription } from './transformers.models';
 import { createZeroShotClassifier } from './zero-shot-classifier';
@@ -686,5 +687,88 @@ export const TranslationLive: StoryObj = {
   render: () => ({
     template: '<story-translate />',
     moduleMetadata: { imports: [TranslateStoryComponent] },
+  }),
+};
+
+@Component({
+  selector: 'story-generate',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ModelProgressComponent],
+  template: `
+    <div class="wrap">
+      <textarea #box rows="3">Explain what a signal is in Angular, in two sentences.</textarea>
+      <div class="row">
+        <button (click)="generate(box.value)" [disabled]="generator.busy()">
+          {{ generator.ready() ? 'Generate' : 'Load model & generate' }}
+        </button>
+        <span class="hint">SmolLM2-135M-Instruct, ~100 MB once; the reply streams in</span>
+      </div>
+      <ngx-model-progress [status]="generator.status()" [progress]="generator.progress()" />
+      @if (generator.output(); as text) {
+        <blockquote class="out">{{ text }}</blockquote>
+      }
+    </div>
+  `,
+  styles: `
+    .wrap {
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+    }
+    textarea {
+      font: inherit;
+      font-size: 13.5px;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 9px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .hint {
+      font-size: 12px;
+      color: #64748b;
+    }
+    button {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 9px;
+      background: #1e293b;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.55;
+    }
+    .out {
+      margin: 0;
+      font-size: 14px;
+      white-space: pre-wrap;
+      border-left: 3px solid #f59e0b;
+      padding: 8px 12px;
+      background: #fffbeb;
+      border-radius: 0 9px 9px 0;
+    }
+  `,
+})
+class GenerateStoryComponent {
+  readonly generator = createTextGenerator();
+
+  async generate(prompt: string): Promise<void> {
+    await this.generator.generate([{ role: 'user', content: prompt }], { maxNewTokens: 120 });
+  }
+}
+
+export const TextGenerationLive: StoryObj = {
+  render: () => ({
+    template: '<story-generate />',
+    moduleMetadata: { imports: [GenerateStoryComponent] },
   }),
 };
