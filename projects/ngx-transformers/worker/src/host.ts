@@ -5,7 +5,6 @@ import type {
   WorkerRequest,
   WorkerResponse,
 } from './protocol';
-import { takeOnToken } from './run-options';
 
 /** A pipeline callable inside the worker: the real Transformers.js pipeline. */
 type Pipe = ((...args: unknown[]) => Promise<unknown>) & {
@@ -92,7 +91,13 @@ export function createTransformersWorkerHost(options: WorkerHostOptions): Worker
   let module: Promise<WorkerTransformersModule> | null = null;
   let nextPipeId = 1;
 
-  const loadModule = () => (module ??= load());
+  // A failed import is not kept: the next create() tries again, so a load
+  // that failed on a network blip stays retryable, as PipelineHandle promises.
+  const loadModule = () =>
+    (module ??= load().catch((err: unknown) => {
+      module = null;
+      throw err;
+    }));
 
   async function create(message: CreateRequest): Promise<void> {
     try {
@@ -121,14 +126,14 @@ export function createTransformersWorkerHost(options: WorkerHostOptions): Worker
       if (message.stream) {
         const { TextStreamer } = await loadModule();
         if (TextStreamer) {
-          const { args: rest } = takeOnToken(args);
-          const options = { ...(rest[rest.length - 1] as Record<string, unknown>) };
+          // The client already stripped onToken; the options object is last.
+          const options = { ...(args[args.length - 1] as Record<string, unknown>) };
           options['streamer'] = new TextStreamer(pipe.tokenizer as never, {
             skip_prompt: true,
             skip_special_tokens: true,
             callback_function: (text) => post({ type: 'token', id: message.id, text }),
           });
-          args = [...rest.slice(0, -1), options];
+          args = [...args.slice(0, -1), options];
         }
       }
       const { value, transfer } = toCloneable(await pipe(...args));

@@ -38,7 +38,8 @@ The worker is created lazily, on the first pipeline, and every handle shares it.
 - **Inputs**: strings, arrays, typed arrays, Blobs and plain objects, anything structured cloning accepts. Functions are dropped from the options, except `onToken`, which the worker turns into a streamer (see [Text generation](./text-generation)).
 - **Progress** events and generated tokens come back as messages and feed the same signals.
 - **Results**: plain objects and arrays as is. Transformers.js Tensors arrive as `{ dims, data }` with the buffer transferred, which is what `TextEmbedder` reads. Results holding class instances that do not clone (a `RawImage`, for example) are not supported in worker mode; run those handles in-thread with a second factory, below.
-- **Errors** are re-thrown on the main thread with the worker's error name and message.
+- **Errors** are re-thrown on the main thread with the worker's error name and message. If the worker itself fails, because its script did not load or it crashed while loading a model, every call waiting on it rejects with a `WorkerError` and the handle shows `error`, like a failed load in-thread; the next pipeline starts a fresh worker.
+- **Lifetime**: the worker is created on the first pipeline and terminated when the environment injector it was provided in is destroyed. `createWorkerPipelineFactory()` exposes `terminate()` for setups that manage it by hand.
 
 ## Device selection
 

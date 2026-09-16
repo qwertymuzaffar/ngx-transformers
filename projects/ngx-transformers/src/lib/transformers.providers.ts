@@ -1,4 +1,10 @@
-import { EnvironmentProviders, InjectionToken, makeEnvironmentProviders } from '@angular/core';
+import {
+  DestroyRef,
+  EnvironmentProviders,
+  InjectionToken,
+  inject,
+  makeEnvironmentProviders,
+} from '@angular/core';
 import { createWorkerPipelineFactory, takeOnToken, type WorkerLike } from 'ngx-transformers/worker';
 import type { NgxTransformersConfig } from './transformers.models';
 
@@ -139,12 +145,21 @@ export function provideTransformers(config: NgxTransformersConfig): EnvironmentP
  * )
  * ```
  *
- * The worker is created on the first pipeline. Handles, signals and the
- * wrappers work unchanged; results must survive structured cloning (plain
- * objects, arrays, typed arrays and tensors do).
+ * The worker is created on the first pipeline and terminated with the
+ * injector. Handles, signals and the wrappers work unchanged; results must
+ * survive structured cloning (plain objects, arrays, typed arrays and
+ * tensors do). A worker that fails to start rejects the calls waiting on
+ * it, like a failed load in-thread.
  */
 export function provideTransformersWorker(createWorker: () => WorkerLike): EnvironmentProviders {
   return makeEnvironmentProviders([
-    { provide: PIPELINE_FACTORY, useFactory: () => createWorkerPipelineFactory(createWorker) },
+    {
+      provide: PIPELINE_FACTORY,
+      useFactory: () => {
+        const factory = createWorkerPipelineFactory(createWorker);
+        inject(DestroyRef).onDestroy(() => factory.terminate());
+        return factory;
+      },
+    },
   ]);
 }

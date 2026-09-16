@@ -1,10 +1,21 @@
 import type { WorkerRequest, WorkerResponse } from './protocol';
 import { takeOnToken, withoutFunctions, withoutFunctionsInLast, type OnToken } from './run-options';
 
+/** What a worker's 'error' / 'messageerror' event carries, as far as the client reads it. */
+export interface WorkerErrorEventLike {
+  message?: string;
+  data?: unknown;
+}
+
 /** The Worker surface the client needs; a real Worker satisfies it. */
 export interface WorkerLike {
   postMessage(message: unknown, transfer?: Transferable[]): void;
   addEventListener(type: 'message', listener: (event: { data: unknown }) => void): void;
+  addEventListener(
+    type: 'error' | 'messageerror',
+    listener: (event: WorkerErrorEventLike) => void,
+  ): void;
+  terminate?(): void;
 }
 
 /** A pipeline proxy on the main thread: calls run in the worker. */
@@ -12,12 +23,15 @@ export type WorkerPipeline = ((input: unknown, ...args: unknown[]) => Promise<un
   dispose: () => Promise<void>;
 };
 
-/** Structurally the same as ngx-transformers' PipelineFactory. */
-export type WorkerPipelineFactory = (
+/** Structurally the same as ngx-transformers' PipelineFactory, plus terminate(). */
+export type WorkerPipelineFactory = ((
   task: string,
   model: string | undefined,
   options: Record<string, unknown>,
-) => Promise<WorkerPipeline>;
+) => Promise<WorkerPipeline>) & {
+  /** Stops the worker (if one was created); the next pipeline starts a fresh one. */
+  terminate(): void;
+};
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -32,6 +46,9 @@ interface Pending {
  * is created lazily, on the first pipeline. Provide the factory through
  * PIPELINE_FACTORY, or use provideTransformersWorker() from
  * ngx-transformers which does exactly that.
+ *
+ * A worker that fails to start or crashes rejects every pending call and
+ * is dropped; the next pipeline creates a new one.
  */
 export function createWorkerPipelineFactory(
   worker: WorkerLike | (() => WorkerLike),
@@ -68,10 +85,27 @@ export function createWorkerPipelineFactory(
     }
   }
 
+  /** The worker is gone: fail everything in flight and forget it. */
+  function fail(reason: string): void {
+    const error = new Error(reason);
+    error.name = 'WorkerError';
+    const entries = [...pending.values()];
+    pending.clear();
+    instance = null;
+    for (const entry of entries) entry.reject(error);
+  }
+
   function getWorker(): WorkerLike {
     if (!instance) {
-      instance = typeof worker === 'function' ? worker() : worker;
-      instance.addEventListener('message', (event) => dispatch(event.data as WorkerResponse));
+      const created = typeof worker === 'function' ? worker() : worker;
+      created.addEventListener('message', (event) => dispatch(event.data as WorkerResponse));
+      created.addEventListener('error', (event) =>
+        fail(`Transformers worker failed: ${event.message ?? 'unknown error'}`),
+      );
+      created.addEventListener('messageerror', () =>
+        fail('Transformers worker sent a message that could not be deserialized.'),
+      );
+      instance = created;
     }
     return instance;
   }
@@ -82,11 +116,21 @@ export function createWorkerPipelineFactory(
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       pending.set(message.id, { resolve: resolve as (value: unknown) => void, reject, ...extras });
-      getWorker().postMessage(message);
+      try {
+        getWorker().postMessage(message);
+      } catch (err) {
+        // Uncloneable input, or a worker that cannot be constructed.
+        pending.delete(message.id);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
     });
   }
 
-  return async (task, model, options) => {
+  const factory = async (
+    task: string,
+    model: string | undefined,
+    options: Record<string, unknown>,
+  ) => {
     const { progress_callback, ...rest } = options;
     const progress =
       typeof progress_callback === 'function'
@@ -111,8 +155,17 @@ export function createWorkerPipelineFactory(
       );
     }) as WorkerPipeline;
     pipe.dispose = async () => {
-      getWorker().postMessage({ type: 'dispose', pipeId } satisfies WorkerRequest);
+      if (!instance) return; // the worker is gone, and its pipelines with it
+      instance.postMessage({ type: 'dispose', pipeId } satisfies WorkerRequest);
     };
     return pipe;
   };
+
+  return Object.assign(factory, {
+    terminate(): void {
+      const current = instance;
+      fail('Transformers worker terminated.');
+      current?.terminate?.();
+    },
+  });
 }

@@ -50,25 +50,34 @@ function fakeModule(behaviour: {
  * Wires a host and a client through an in-memory "worker": messages cross
  * a microtask boundary in both directions, like a real MessagePort.
  */
-function inMemoryWorker(module: WorkerTransformersModule) {
-  const listeners: ((event: { data: unknown }) => void)[] = [];
+function inMemoryWorker(
+  module: WorkerTransformersModule,
+  load?: () => Promise<WorkerTransformersModule>,
+) {
+  const listeners = new Map<string, ((event: unknown) => void)[]>();
   const posted: WorkerResponse[] = [];
   const host = createTransformersWorkerHost({
     post: (message) => {
       posted.push(message);
-      queueMicrotask(() => listeners.forEach((l) => l({ data: message })));
+      queueMicrotask(() => listeners.get('message')?.forEach((l) => l({ data: message })));
     },
-    load: async () => module,
+    load: load ?? (async () => module),
   });
   const sent: WorkerRequest[] = [];
+  let terminated = 0;
   const worker: WorkerLike = {
     postMessage: (message) => {
       sent.push(message as WorkerRequest);
       queueMicrotask(() => void host.handle(message as WorkerRequest));
     },
-    addEventListener: (_type, listener) => void listeners.push(listener),
+    addEventListener: (type: string, listener: (event: never) => void) => {
+      listeners.set(type, [...(listeners.get(type) ?? []), listener as (event: unknown) => void]);
+    },
+    terminate: () => void terminated++,
   };
-  return { worker, sent, posted };
+  const emit = (type: 'error' | 'messageerror', event: { message?: string } = {}) =>
+    listeners.get(type)?.forEach((l) => l(event));
+  return { worker, sent, posted, emit, terminated: () => terminated };
 }
 
 describe('worker pipeline factory + host', () => {
@@ -208,6 +217,66 @@ describe('worker pipeline factory + host', () => {
     await factory('b', undefined, {});
     expect(constructions).toBe(1);
     expect(fake.created()).toBe(2);
+  });
+
+  it('a worker that crashes rejects every pending call, and the next call starts a new worker', async () => {
+    let constructions = 0;
+    const fake = fakeModule({ run: () => new Promise(() => undefined) }); // never settles
+    const channel = inMemoryWorker(fake.module);
+    const factory = createWorkerPipelineFactory(() => {
+      constructions++;
+      return channel.worker;
+    });
+    const pipe = await factory('t', undefined, {});
+    const hanging = pipe('x');
+    channel.emit('error', { message: 'script failed to load' });
+    await expect(hanging).rejects.toMatchObject({
+      name: 'WorkerError',
+      message: /script failed to load/,
+    });
+    // the dead worker is forgotten: a new pipeline constructs another one
+    await factory('t', undefined, {});
+    expect(constructions).toBe(2);
+    await pipe.dispose(); // does not throw for a pipeline of the dead worker
+  });
+
+  it('terminate() stops the worker and fails what was in flight', async () => {
+    const fake = fakeModule({ run: () => new Promise(() => undefined) });
+    const channel = inMemoryWorker(fake.module);
+    const factory = createWorkerPipelineFactory(channel.worker);
+    const pipe = await factory('t', undefined, {});
+    const hanging = pipe('x');
+    factory.terminate();
+    await expect(hanging).rejects.toThrow(/terminated/);
+    expect(channel.terminated()).toBe(1);
+    factory.terminate(); // idempotent without a worker
+    expect(channel.terminated()).toBe(1);
+  });
+
+  it('a synchronous postMessage failure rejects instead of hanging', async () => {
+    const worker: WorkerLike = {
+      postMessage: () => {
+        throw new Error('DataCloneError');
+      },
+      addEventListener: () => undefined,
+    };
+    await expect(createWorkerPipelineFactory(worker)('t', undefined, {})).rejects.toThrow(
+      'DataCloneError',
+    );
+  });
+
+  it('the host retries the module import after a failed one', async () => {
+    let attempts = 0;
+    const good = fakeModule({});
+    const channel = inMemoryWorker(good.module, async () => {
+      attempts++;
+      if (attempts === 1) throw new Error('network blip');
+      return good.module;
+    });
+    const factory = createWorkerPipelineFactory(channel.worker);
+    await expect(factory('t', undefined, {})).rejects.toThrow('network blip');
+    await expect(factory('t', undefined, {})).resolves.toBeTypeOf('function');
+    expect(attempts).toBe(2);
   });
 
   it('runTransformersWorker() wires the host to a worker scope', async () => {
