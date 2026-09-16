@@ -50,9 +50,12 @@ describe('inferenceResource', () => {
     await settle(() => expect(resolvers.has('a')).toBe(true));
     text.set('b');
     await settle(() => expect(resolvers.has('b')).toBe(true));
-    resolvers.get('a')!('A'); // stale: arrives after b was requested
     resolvers.get('b')!('B');
     await settle(() => expect(res.value()).toBe('B'));
+    resolvers.get('a')!('A'); // stale: arrives after b already resolved
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    TestBed.tick();
+    expect(res.value()).toBe('B');
     expect(res.status()).toBe('resolved');
   });
 

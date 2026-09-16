@@ -17,8 +17,9 @@ export interface InferenceResourceOptions<TIn, TOut> {
   input: () => TIn | undefined;
   /**
    * Runs the model for one input, typically a handle method. The abort
-   * signal fires when a newer input supersedes this run; a model run cannot
-   * be interrupted, but the stale result is dropped either way.
+   * signal fires when a newer input supersedes this run: pass it on as the
+   * method's `signal` option and a superseded run that has not started yet
+   * (it was waiting for the model to load) is skipped instead of queued.
    */
   run: (input: TIn, abortSignal: AbortSignal) => Promise<TOut>;
   /** Wait this long after the last input change before running (typing). */
@@ -37,7 +38,7 @@ export interface InferenceResourceOptions<TIn, TOut> {
  * readonly classifier = createTextClassifier();
  * readonly sentiment = inferenceResource({
  *   input: () => this.text().trim() || undefined,
- *   run: (text) => this.classifier.classify(text),
+ *   run: (text, signal) => this.classifier.classify(text, 1, { signal }),
  *   debounceMs: 300,
  * });
  * // template: @if (sentiment.value(); as result) { {{ result[0].label }} }

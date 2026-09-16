@@ -357,7 +357,7 @@ export class App {
   /** Re-runs the classifier whenever the text settles for 400 ms; empty text stays idle. */
   readonly sentiment = inferenceResource({
     input: () => this.sentimentText().trim() || undefined,
-    run: (text) => this.classifier.classify(text),
+    run: (text, signal) => this.classifier.classify(text, 1, { signal }),
     debounceMs: 400,
   });
   readonly results = signal<{ text: string; score: number | null }[] | null>(null);

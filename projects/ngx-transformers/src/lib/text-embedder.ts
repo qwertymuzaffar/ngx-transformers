@@ -1,6 +1,6 @@
 import { DestroyRef, inject } from '@angular/core';
 import { PipelineHandle } from './pipeline';
-import type { PipelineRequest, RankedResult } from './transformers.models';
+import type { PipelineRequest, RankedResult, RunOptions } from './transformers.models';
 import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY } from './transformers.providers';
 
 export const DEFAULT_EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2';
@@ -36,23 +36,27 @@ export function cosineSimilarity(a: readonly number[], b: readonly number[]): nu
  */
 export class TextEmbedder extends PipelineHandle<string | string[], TensorLike> {
   /** Embeds one or many texts; always resolves to one vector per text. */
-  async embed(texts: string | string[]): Promise<number[][]> {
+  async embed(texts: string | string[], options: RunOptions = {}): Promise<number[][]> {
     const input = Array.isArray(texts) ? texts : [texts];
     if (input.length === 0) return [];
-    const out = await this.run(input, { pooling: 'mean', normalize: true });
+    const out = await this.run(input, { pooling: 'mean', normalize: true, signal: options.signal });
     return toRows(out);
   }
 
   /** Cosine similarity of two texts in [-1, 1]. */
-  async similarity(a: string, b: string): Promise<number> {
-    const [va, vb] = await this.embed([a, b]);
+  async similarity(a: string, b: string, options: RunOptions = {}): Promise<number> {
+    const [va, vb] = await this.embed([a, b], options);
     return cosineSimilarity(va, vb);
   }
 
   /** Ranks documents against a query, most similar first. */
-  async rank(query: string, documents: string[]): Promise<RankedResult[]> {
+  async rank(
+    query: string,
+    documents: string[],
+    options: RunOptions = {},
+  ): Promise<RankedResult[]> {
     if (documents.length === 0) return [];
-    const [queryVec, ...docVecs] = await this.embed([query, ...documents]);
+    const [queryVec, ...docVecs] = await this.embed([query, ...documents], options);
     return docVecs
       .map((vec, index) => ({
         text: documents[index],

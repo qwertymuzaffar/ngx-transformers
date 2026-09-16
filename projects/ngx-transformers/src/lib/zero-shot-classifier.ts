@@ -39,6 +39,7 @@ export class ZeroShotClassifier extends PipelineHandle<
     if (options.multiLabel !== undefined) runOptions['multi_label'] = options.multiLabel;
     if (options.hypothesisTemplate !== undefined)
       runOptions['hypothesis_template'] = options.hypothesisTemplate;
+    if (options.signal !== undefined) runOptions['signal'] = options.signal;
 
     const raw = await this.runWith(text, [...labels], runOptions);
     const first = Array.isArray(raw) ? raw[0] : raw;

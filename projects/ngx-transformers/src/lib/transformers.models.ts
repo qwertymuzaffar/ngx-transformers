@@ -61,6 +61,15 @@ export interface PipelineRequest {
   options?: Record<string, unknown>;
 }
 
+/**
+ * Options every run accepts. `signal` makes a run reject with an AbortError
+ * before it starts when the signal has already fired; a model run cannot be
+ * interrupted once started, but a superseded run need not begin.
+ */
+export interface RunOptions {
+  signal?: AbortSignal;
+}
+
 export interface ClassificationResult {
   label: string;
   score: number;
@@ -89,7 +98,7 @@ export interface Transcription {
   chunks?: TranscriptionChunk[];
 }
 
-export interface TranscribeOptions {
+export interface TranscribeOptions extends RunOptions {
   /** true for segment timestamps, 'word' for word-level. */
   returnTimestamps?: boolean | 'word';
   /** Split audio longer than ~30 s into chunks of this many seconds. */
@@ -103,7 +112,7 @@ export interface TranscribeOptions {
 }
 
 /** Options for ZeroShotClassifier.classify(). */
-export interface ZeroShotOptions {
+export interface ZeroShotOptions extends RunOptions {
   /** Score every label on its own (several can be high) instead of picking one. */
   multiLabel?: boolean;
   /** NLI hypothesis with a {} placeholder for the label; default "This example is {}.". */
@@ -114,7 +123,7 @@ export interface ZeroShotOptions {
  * Language pair for one translate() call. Codes follow the checkpoint:
  * ISO 639-1 for opus-mt ("en", "ru"), FLORES-200 for NLLB ("eng_Latn").
  */
-export interface TranslateOptions {
+export interface TranslateOptions extends RunOptions {
   from?: string;
   to?: string;
 }
@@ -134,7 +143,7 @@ export interface ChatMessage {
 }
 
 /** Options for TextGenerator.generate(). */
-export interface GenerateOptions {
+export interface GenerateOptions extends RunOptions {
   /** Upper bound on generated tokens; default 256. */
   maxNewTokens?: number;
   /** Sample instead of greedy decoding; set with temperature / topP / topK. */

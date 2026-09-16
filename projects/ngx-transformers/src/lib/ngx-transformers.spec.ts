@@ -175,6 +175,115 @@ describe('PipelineHandle', () => {
     expect(handle.progress()?.file).toBe('tokenizer.json');
   });
 
+  it('withholds the total until the weights file is known, and ignores initiate/download', async () => {
+    let capturedOptions: Record<string, unknown> = {};
+    const factory: PipelineFactory = async (_task, _model, options) => {
+      capturedOptions = options;
+      return (async () => []) as PipelineLike;
+    };
+    const handle = handleWith(factory);
+    await handle.load();
+    const cb = capturedOptions['progress_callback'] as (e: unknown) => void;
+    cb({ status: 'progress', file: 'config.json', progress: 100, loaded: 10, total: 10 });
+    cb({ status: 'done', file: 'config.json' });
+    // the small files alone would read 100%: no overall yet
+    expect(handle.progress()).toEqual({
+      file: 'config.json',
+      progress: 100,
+      loadedBytes: 10,
+      totalBytes: 10,
+    });
+    cb({ status: 'initiate', file: 'onnx/model_quantized.onnx' });
+    cb({ status: 'download', file: 'onnx/model_quantized.onnx' });
+    // recorded, but a file that has not moved does not replace the signal
+    expect(handle.progress()?.file).toBe('config.json');
+    cb({
+      status: 'progress',
+      file: 'onnx/model_quantized.onnx',
+      progress: 10,
+      loaded: 100,
+      total: 1000,
+    });
+    expect(handle.progress()?.overall).toEqual({
+      progress: 11,
+      loadedBytes: 110,
+      totalBytes: 1010,
+      files: 2,
+      filesDone: 1,
+    });
+  });
+
+  it('a retried load starts its progress from scratch', async () => {
+    let attempt = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const factory: PipelineFactory = async (_task, _model, options) => {
+      const cb = options['progress_callback'] as (e: unknown) => void;
+      if (++attempt === 1) {
+        cb({ status: 'progress', file: 'config.json', progress: 100, loaded: 10, total: 10 });
+        cb({ status: 'done', file: 'config.json' });
+        cb({ status: 'progress', file: 'onnx/model.onnx', progress: 80, loaded: 80, total: 100 });
+        throw new Error('network');
+      }
+      cb({ status: 'progress', file: 'onnx/model.onnx', progress: 10, loaded: 10, total: 100 });
+      await gate; // keep the retry in flight so its progress can be inspected
+      return (async () => []) as PipelineLike;
+    };
+    const handle = handleWith(factory);
+    await expect(handle.load()).rejects.toThrow('network');
+    expect(handle.status()).toBe('error');
+    expect(handle.progress()).toBeNull();
+    const loading = handle.load();
+    await vi.waitFor(() => expect(handle.progress()).not.toBeNull());
+    // the failed attempt's config.json and 80 bytes are gone
+    expect(handle.progress()?.overall).toEqual({
+      progress: 10,
+      loadedBytes: 10,
+      totalBytes: 100,
+      files: 1,
+      filesDone: 0,
+    });
+    release();
+    await loading;
+    expect(handle.status()).toBe('ready');
+  });
+
+  it('only the most recently started run writes runError', async () => {
+    const settle: ((outcome: 'ok' | 'fail') => void)[] = [];
+    const { factory } = mockFactory(
+      () =>
+        new Promise<string>((resolve, reject) =>
+          settle.push((outcome) => (outcome === 'ok' ? resolve('ok') : reject(new Error('boom')))),
+        ),
+    );
+    const handle = handleWith(factory);
+    const first = handle.run('a');
+    const second = handle.run('b');
+    await vi.waitFor(() => expect(settle).toHaveLength(2));
+    settle[0]('fail'); // the superseded run fails
+    await expect(first).rejects.toThrow('boom');
+    expect(handle.runError()).toBeNull();
+    settle[1]('ok');
+    await second;
+    expect(handle.runError()).toBeNull();
+  });
+
+  it('a run whose signal already fired rejects with AbortError instead of running', async () => {
+    const mocks = mockFactory();
+    const handle = handleWith(mocks.factory);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(handle.run('x', { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(mocks.runCalls).toHaveLength(0);
+    expect(handle.status()).toBe('ready'); // the model loaded and is intact
+    // a live signal is stripped from the pipeline options and the run proceeds
+    const live = new AbortController();
+    await handle.run('y', { signal: live.signal, top_k: 2 });
+    expect(mocks.runCalls[0].options).toEqual({ top_k: 2 });
+  });
+
   it('exposes a failed run in runError and clears it on the next run', async () => {
     let fail = true;
     const { factory } = mockFactory(async () => {
@@ -294,6 +403,21 @@ describe('TextClassifier', () => {
     ]);
     const out = await classifier.classify('great stuff', 2);
     expect(out.map((r) => r.label)).toEqual(['POSITIVE', 'NEGATIVE']);
+  });
+
+  it('classify() forwards an abort signal to the run', async () => {
+    const { factory, runCalls } = mockFactory(async () => [{ label: 'POSITIVE', score: 1 }]);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }],
+    });
+    const classifier = TestBed.runInInjectionContext(() => createTextClassifier());
+    const controller = new AbortController();
+    controller.abort();
+    await expect(classifier.classify('x', 1, { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(runCalls).toHaveLength(0);
   });
 
   it('classify() unwraps nested batch results', async () => {

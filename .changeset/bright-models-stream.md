@@ -7,4 +7,5 @@
 - **Reactive inference.** `inferenceResource()` runs a handle whenever an input signal changes, as an Angular resource with debounce and latest-wins.
 - **Overall download progress.** `progress().overall` sums every file of a model and `<ngx-model-progress>` drives its bar with it, instead of jumping between files.
 - **Run errors.** A `runError` signal on handles and the translator holds the error of the most recent run.
+- Every wrapper method accepts a `signal` (`AbortSignal`) run option: a run whose signal fired while the model was still loading rejects with an `AbortError` instead of queueing.
 - `TransformersDtype` gains `int8`, `uint8`, `bnb4` and `q4f16`.

@@ -76,7 +76,7 @@ export class Translator {
   /** Translates one text; the pair defaults to the one given at creation. */
   async translate(text: string, pair: TranslateOptions = {}): Promise<string> {
     const handle = this.handleFor(pair);
-    const raw = await handle.run(text, this.languageOptions(pair));
+    const raw = await handle.run(text, { ...this.languageOptions(pair), signal: pair.signal });
     const first = Array.isArray(raw) ? raw[0] : raw;
     return (first?.translation_text ?? '').trim();
   }

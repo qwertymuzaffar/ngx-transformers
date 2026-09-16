@@ -1,6 +1,6 @@
 import { DestroyRef, inject } from '@angular/core';
 import { PipelineHandle } from './pipeline';
-import type { ClassificationResult, PipelineRequest } from './transformers.models';
+import type { ClassificationResult, PipelineRequest, RunOptions } from './transformers.models';
 import { NGX_TRANSFORMERS_CONFIG, PIPELINE_FACTORY } from './transformers.providers';
 
 export const DEFAULT_TEXT_CLASSIFICATION_MODEL =
@@ -16,8 +16,12 @@ export class TextClassifier extends PipelineHandle<
   ClassificationResult[] | ClassificationResult[][]
 > {
   /** Classifies one text; resolves to labels sorted by score (top first). */
-  async classify(text: string, topK = 1): Promise<ClassificationResult[]> {
-    const out = await this.run(text, { top_k: topK });
+  async classify(
+    text: string,
+    topK = 1,
+    options: RunOptions = {},
+  ): Promise<ClassificationResult[]> {
+    const out = await this.run(text, { top_k: topK, signal: options.signal });
     // Single input: transformers.js returns a flat array of {label, score}.
     const flat = (Array.isArray(out[0]) ? out[0] : out) as ClassificationResult[];
     return [...flat].sort((a, b) => b.score - a.score);

@@ -25,26 +25,26 @@ export class SentimentComponent {
   readonly classifier = createTextClassifier();
   readonly sentiment = inferenceResource({
     input: () => this.text().trim() || undefined,
-    run: (text) => this.classifier.classify(text),
+    run: (text, signal) => this.classifier.classify(text, 1, { signal }),
     debounceMs: 300,
   });
 }
 ```
 
-The demo app's sentiment card is built this way.
+The demo app's sentiment card is built this way. Passing the `signal` on matters: while the model is still downloading, every debounced change would otherwise queue a run that executes once the model is ready, and a queued run whose input has been superseded is wasted work. With the signal, those runs reject before they start.
 
 ## Options
 
 | Option | Effect |
 | --- | --- |
 | `input` | Read reactively. Return `undefined` for "nothing to run": the resource goes idle and drops its value. |
-| `run(input, abortSignal)` | Runs the model, usually a handle method. The signal aborts when a newer input supersedes this run. |
+| `run(input, abortSignal)` | Runs the model, usually a handle method. The signal aborts when a newer input supersedes this run; pass it as the method's `signal` option. |
 | `debounceMs` | Wait this long after the last change before running. The initial input runs at once; later changes are coalesced. |
 | `injector` | Required when called outside an injection context. |
 
 ## Behaviour
 
-- **Latest wins.** If the input changes while a run is in flight, the older result is discarded when it arrives. A model run cannot be interrupted, so it still finishes in the background; check `abortSignal.aborted` after an `await` when `run` does several steps and the later ones are worth skipping.
+- **Latest wins.** If the input changes while a run is in flight, the older result is discarded when it arrives. A model run that has started cannot be interrupted, so it finishes in the background; one that has not started yet (waiting for the model) is skipped when you pass the signal. Check `abortSignal.aborted` between steps when `run` chains several calls.
 - **Equality.** Inputs are compared with `Object.is`, so an unchanged string does not re-run. Objects and arrays re-run on every new instance; derive a stable value (a joined string, an id) when that matters.
 - **Lifecycle.** The resource is destroyed with the injection context it was created in, like the handle itself. Model loading and disposal stay with the handle: the first run triggers the download, and `<ngx-model-progress>` shows it as usual.
 
