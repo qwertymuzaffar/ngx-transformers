@@ -69,7 +69,8 @@
             ],
             "styles": [
               "projects/demo/src/styles.scss"
-            ]
+            ],
+            "webWorkerTsConfig": "projects/demo/tsconfig.worker.json"
           },
           "configurations": {
             "production": {

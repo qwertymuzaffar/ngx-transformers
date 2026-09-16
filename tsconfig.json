@@ -9,7 +9,8 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "ngx-transformers": ["./dist/ngx-transformers"]
+      "ngx-transformers": ["./dist/ngx-transformers"],
+      "ngx-transformers/worker": ["./dist/ngx-transformers/worker"]
     },
     "skipLibCheck": true,
     "isolatedModules": true,
