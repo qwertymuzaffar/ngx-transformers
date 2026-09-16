@@ -15,7 +15,7 @@ bootstrapApplication(App, {
 | --- | --- | --- | --- |
 | `device` | `'wasm' \| 'webgpu' \| 'auto'` | unset (Transformers.js picks WebAssembly) | Runtime for every handle without its own `device`. |
 | `autoDevice` | `boolean` | `false` | Probe WebGPU once and use it when available, for handles whose device is unset or `'auto'`. |
-| `dtype` | `'fp32' \| 'fp16' \| 'q8' \| 'q4'` | unset (Transformers.js picks per model) | Quantization for every handle without its own `dtype`. |
+| `dtype` | `TransformersDtype` | unset (Transformers.js picks per model) | Quantization for every handle without its own `dtype`: `fp32`, `fp16`, `q8`, `int8`, `uint8`, `q4`, `bnb4` or `q4f16`. |
 | `pipelineOptions` | `Record<string, unknown>` | `{}` | Extra options forwarded to every `pipeline()` call, such as `revision` or `local_files_only`. |
 | `translationModels` | `Record<string, string>` | `{}` | Checkpoint per language pair for `createTranslator()`, keyed `"from-to"`. |
 
@@ -47,6 +47,7 @@ Some checkpoints still have WebGPU issues in the ONNX runtime. If a model misbeh
 | `q8` | The usual choice on WebAssembly: a quarter of the fp32 size with negligible accuracy loss. |
 | `q4` | Whisper on the v4 WebAssembly runtime (`createSpeechRecognizer()` defaults to it), and large decoders where download size matters. |
 | `fp16` | WebGPU. Half the size of fp32 and fast on the GPU; the WebAssembly backend does not run fp16 models. |
+| `q4f16` | WebGPU with a large decoder: 4-bit weights, half-precision activations. |
 | `fp32` | Reference accuracy, or a checkpoint that ships no quantized weights. |
 
 A model repository must contain weights for the dtype you ask for (`onnx/model_quantized.onnx` for q8, `onnx/model_q4.onnx` for q4, and so on). The `Xenova` and `onnx-community` organisations on the Hub publish the common variants.
@@ -57,7 +58,7 @@ Every handle asks the `PIPELINE_FACTORY` injection token for its pipeline. The d
 
 - add options or logging around every pipeline,
 - configure the Transformers.js `env` (model host, cache) before the first pipeline, see [Hosting models yourself](./models#hosting-models-yourself),
-- route inference somewhere else, such as a Web Worker,
+- route inference to a Web Worker, which [`provideTransformersWorker()`](./web-workers) does for you,
 - return a stub in tests, see [Testing](./testing).
 
 ```ts

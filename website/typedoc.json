@@ -1,9 +1,18 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": ["../projects/ngx-transformers/src/public-api.ts"],
+  "entryPoints": [
+    "../projects/ngx-transformers/src/public-api.ts",
+    "../projects/ngx-transformers/worker/src/public-api.ts"
+  ],
   "tsconfig": "tsconfig.typedoc.json",
-  "exclude": ["**/*.spec.ts", "**/*.stories.ts"],
-  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+  "exclude": [
+    "**/*.spec.ts",
+    "**/*.stories.ts"
+  ],
+  "plugin": [
+    "typedoc-plugin-markdown",
+    "typedoc-vitepress-theme"
+  ],
   "out": "api",
   "docsRoot": ".",
   "name": "ngx-transformers API",
@@ -14,7 +23,10 @@
   "readme": "none",
   "githubPages": false,
   "hideGenerator": true,
-  "sort": ["kind", "alphabetical"],
+  "sort": [
+    "kind",
+    "alphabetical"
+  ],
   "treatWarningsAsErrors": false,
   "validation": {
     "notExported": false,

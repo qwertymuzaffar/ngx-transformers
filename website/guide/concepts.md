@@ -32,14 +32,15 @@ Transitions: `idle → loading → ready ⇄ busy`, plus `loading → error → 
 | Signal | Type | Notes |
 | --- | --- | --- |
 | `status` | `PipelineStatus` | The lifecycle state above. |
-| `progress` | `ModelProgress \| null` | The file currently downloading: `file`, `progress` (0 to 100), `loadedBytes`, `totalBytes`. `null` outside of loading. |
+| `progress` | `ModelProgress \| null` | The file reported last (`file`, `progress`, `loadedBytes`, `totalBytes`) plus `overall`, the same numbers summed over every file of the model. `null` outside of loading. |
 | `error` | `unknown` | The last load error, cleared when a load starts. |
+| `runError` | `unknown` | The error of the most recent run, if it failed; cleared when the next run starts. |
 | `ready` | `boolean` (computed) | `status` is `ready` or `busy`: the model can be used. |
 | `busy` | `boolean` (computed) | `status` is `busy` or `loading`: disable the button. |
 
 All of them are plain Angular signals, so they work with `OnPush` components, zoneless apps, `computed()` and `effect()`.
 
-Transformers.js downloads a model's files in parallel (config, tokenizer, ONNX weights); `progress` follows whichever file reported last, so expect it to switch between files while loading.
+Transformers.js downloads a model's files in parallel (config, tokenizer, ONNX weights). `progress.file` follows whichever file reported last, while `progress.overall` sums the bytes of every file seen so far; the progress component drives its bar with `overall`, which is the steady number.
 
 ## Methods
 
@@ -60,7 +61,7 @@ Several `run()` calls can overlap; Transformers.js queues them on the runtime. T
 
 ## Where it runs
 
-Inference happens on the main thread through Transformers.js. The default models return in tens to hundreds of milliseconds; Whisper and translation can take a few seconds per call on WebAssembly, during which the page is less responsive. WebGPU helps a lot where available; see [Device selection](./configuration#device-selection).
+Inference happens on the main thread by default. The default models return in tens to hundreds of milliseconds; Whisper, translation and text generation can take seconds per call on WebAssembly, during which the page is less responsive. Two remedies: [Web Workers](./web-workers) move every pipeline off the main thread with one provider, and WebGPU is several times faster where available, see [Device selection](./configuration#device-selection).
 
 ## Server-side rendering
 

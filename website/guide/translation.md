@@ -50,5 +50,5 @@ provideTransformers({ translationModels: { 'en-ru': 'my-org/en-ru-tiny' } });
 
 ## Tips
 
-- Sentences translate better than paragraphs: split long text on sentence boundaries and translate them in sequence.
+- Sentences translate better than paragraphs. [chunklet](https://www.npmjs.com/package/chunklet)'s `chunkSentences(text, { maxTokens: 64 })` splits on real sentence boundaries (abbreviations included) into pieces you can translate in sequence and join back.
 - The first call per pair pays the download; call `load({ to: 'de' })` early for pairs you know you will need.

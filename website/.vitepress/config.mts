@@ -6,7 +6,7 @@ const base = (process.env.PAGES_BASE ?? '/ngx-transformers/').replace(/\/?$/, '/
 const site = 'https://qwertymuzaffar.github.io/ngx-transformers/';
 const repo = 'https://github.com/qwertymuzaffar/ngx-transformers';
 const description =
-  'On-device ML for Angular: Transformers.js with a signals API. Text and zero-shot classification, embeddings and semantic search, translation, and Whisper speech-to-text in the browser. No server, no API key.';
+  'On-device ML for Angular: Transformers.js with a signals API. Text and zero-shot classification, embeddings and semantic search, translation, Whisper speech-to-text and small LLMs in the browser, in a Web Worker if you like. No server, no API key.';
 
 export default defineConfig({
   title: 'ngx-transformers',
@@ -60,12 +60,15 @@ export default defineConfig({
             { text: 'Embeddings and semantic search', link: '/guide/embeddings' },
             { text: 'Translation', link: '/guide/translation' },
             { text: 'Speech to text', link: '/guide/speech-to-text' },
+            { text: 'Text generation', link: '/guide/text-generation' },
             { text: 'Any pipeline', link: '/guide/any-pipeline' },
           ],
         },
         {
-          text: 'More',
+          text: 'Going further',
           items: [
+            { text: 'Reactive inference', link: '/guide/reactive-inference' },
+            { text: 'Web Workers', link: '/guide/web-workers' },
             { text: 'Testing', link: '/guide/testing' },
             { text: 'Demos', link: '/guide/demos' },
           ],

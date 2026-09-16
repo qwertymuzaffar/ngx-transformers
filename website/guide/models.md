@@ -11,6 +11,7 @@ Every wrapper ships with a default checkpoint chosen for size and quality on the
 | `createZeroShotClassifier()` | [Xenova/mobilebert-uncased-mnli](https://huggingface.co/Xenova/mobilebert-uncased-mnli) | ~26 MB (q8) | unlisted on the Hub (base MobileBERT: Apache-2.0) |
 | `createTranslator()` | [Xenova/opus-mt-{from}-{to}](https://huggingface.co/models?search=Xenova/opus-mt) | ~105 MB per pair (q8) | varies per pair (Apache-2.0 or CC-BY-4.0) |
 | `createSpeechRecognizer()` | [onnx-community/whisper-tiny.en](https://huggingface.co/onnx-community/whisper-tiny.en) | ~41 MB (q4) | Apache-2.0 |
+| `createTextGenerator()` | [HuggingFaceTB/SmolLM2-135M-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct) | ~100 MB (q4) | Apache-2.0 |
 
 Sizes are what the browser downloads once; the files are then served from the cache. Check the license of the checkpoint you ship: the library is MIT, the models are not.
 

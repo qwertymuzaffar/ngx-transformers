@@ -3,7 +3,7 @@ layout: home
 hero:
   name: ngx-transformers
   text: On-device ML for Angular
-  tagline: Hugging Face Transformers.js behind a signals API. Classification, embeddings, translation and Whisper speech-to-text, all in the browser. No server, no API key.
+  tagline: Hugging Face Transformers.js behind a signals API. Classification, embeddings, translation, Whisper speech-to-text and small LLMs, all in the browser. No server, no API key.
   image:
     src: /favicon.svg
     alt: ngx-transformers
@@ -28,16 +28,16 @@ features:
     details: Every handle exposes status, progress, error, ready and busy as signals, safe to bind in OnPush and zoneless apps.
   - icon: 💤
     title: Lazy by default
-    details: Creating a handle costs nothing. The model downloads on the first call, with per-file progress, and the browser caches it.
+    details: Creating a handle costs nothing. The model downloads on the first call, with progress over every file, and the browser caches it.
   - icon: 🧹
     title: Cleanup built in
     details: Handles are disposed with the component that created them, and a download still in flight is cancelled rather than leaked.
+  - icon: 🧵
+    title: Off the main thread
+    details: One provider moves every pipeline into a Web Worker, so Whisper and translation never freeze the page. Same handles, same signals, streaming included.
   - icon: 🎛️
-    title: Configurable
-    details: Global device and dtype defaults, WebGPU auto-detection, per-handle overrides, any Hub checkpoint, and a swappable pipeline factory.
-  - icon: 🧪
-    title: Testable
-    details: Provide a fake pipeline factory and unit tests never download a model. The library's own suite runs that way in jsdom.
+    title: Configurable and testable
+    details: Global device and dtype defaults, WebGPU auto-detection, any Hub checkpoint, and a swappable pipeline factory that also makes tests run without a model.
 ---
 
 <div class="nt-badges">
