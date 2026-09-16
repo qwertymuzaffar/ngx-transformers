@@ -3,7 +3,8 @@ import type { ModelProgress, PipelineStatus } from './transformers.models';
 
 /**
  * Drop-in status line for a PipelineHandle: shows model download progress
- * while loading, then the ready/busy/error state. Themeable via CSS custom
+ * (over every file of the model) while loading, then the ready/busy/error
+ * state. Themeable via CSS custom
  * properties (--nt-accent, --nt-ink, --nt-muted, --nt-track).
  *
  * ```html
@@ -19,16 +20,19 @@ import type { ModelProgress, PipelineStatus } from './transformers.models';
       <span class="nt-label">{{ label() }}</span>
       @if (status() === 'loading' && progress(); as p) {
         <span class="nt-file">{{ p.file }}</span>
+        @if (p.overall && p.overall.files > 1) {
+          <span class="nt-files">{{ p.overall.filesDone }}/{{ p.overall.files }} files</span>
+        }
         <div
           class="nt-track"
           role="progressbar"
-          [attr.aria-valuenow]="p.progress"
+          [attr.aria-valuenow]="percent(p)"
           aria-valuemin="0"
           aria-valuemax="100"
         >
-          <div class="nt-fill" [style.width.%]="p.progress"></div>
+          <div class="nt-fill" [style.width.%]="percent(p)"></div>
         </div>
-        <span class="nt-pct">{{ p.progress }}%</span>
+        <span class="nt-pct">{{ percent(p) }}%</span>
       }
     </div>
   `,
@@ -92,6 +96,10 @@ import type { ModelProgress, PipelineStatus } from './transformers.models';
       border-radius: 3px;
       transition: width 120ms linear;
     }
+    .nt-files {
+      color: var(--nt-muted);
+      white-space: nowrap;
+    }
     .nt-pct {
       font-variant-numeric: tabular-nums;
       color: var(--nt-muted);
@@ -123,6 +131,11 @@ export class ModelProgressComponent {
   progress = input<ModelProgress | null>(null);
   /** Labels per status; override to localize. */
   labels = input<Partial<Record<PipelineStatus, string>>>({});
+
+  /** The bar follows the whole download when the handle reports it, else the current file. */
+  percent(progress: ModelProgress): number {
+    return progress.overall?.progress ?? progress.progress;
+  }
 
   readonly label = computed(() => {
     const defaults: Record<PipelineStatus, string> = {

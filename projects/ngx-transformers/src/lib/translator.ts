@@ -58,6 +58,7 @@ export class Translator {
   readonly status = computed(() => this.active()?.status() ?? 'idle');
   readonly progress = computed(() => this.active()?.progress() ?? null);
   readonly error = computed(() => this.active()?.error() ?? null);
+  readonly runError = computed(() => this.active()?.runError() ?? null);
   readonly ready = computed(() => this.active()?.ready() ?? false);
   readonly busy = computed(() => this.active()?.busy() ?? false);
 

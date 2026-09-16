@@ -133,9 +133,62 @@ describe('PipelineHandle', () => {
     expect(typeof cb).toBe('function');
     cb({ status: 'initiate', file: 'model.onnx' });
     cb({ status: 'progress', file: 'model.onnx', progress: 41.7, loaded: 41, total: 100 });
+    expect(seen.filter(Boolean).at(-1)).toEqual({
+      file: 'model.onnx',
+      progress: 42,
+      loadedBytes: 41,
+      totalBytes: 100,
+      overall: { progress: 41, loadedBytes: 41, totalBytes: 100, files: 1, filesDone: 0 },
+    });
     cb({ status: 'done', file: 'model.onnx' });
-    const last = seen.filter(Boolean).at(-1)!;
-    expect(last).toEqual({ file: 'model.onnx', progress: 42, loadedBytes: 41, totalBytes: 100 });
+    expect(seen.filter(Boolean).at(-1)).toEqual({
+      file: 'model.onnx',
+      progress: 100,
+      loadedBytes: 100,
+      totalBytes: 100,
+      overall: { progress: 100, loadedBytes: 100, totalBytes: 100, files: 1, filesDone: 1 },
+    });
+  });
+
+  it('sums progress over every file the model downloads in parallel', async () => {
+    let capturedOptions: Record<string, unknown> = {};
+    const factory: PipelineFactory = async (_task, _model, options) => {
+      capturedOptions = options;
+      return (async () => []) as PipelineLike;
+    };
+    const handle = handleWith(factory);
+    await handle.load();
+    const cb = capturedOptions['progress_callback'] as (e: unknown) => void;
+    cb({ status: 'progress', file: 'config.json', progress: 100, loaded: 10, total: 10 });
+    cb({ status: 'done', file: 'config.json' });
+    cb({ status: 'progress', file: 'onnx/model.onnx', progress: 25, loaded: 100, total: 400 });
+    cb({ status: 'progress', file: 'tokenizer.json', progress: 50, loaded: 45, total: 90 });
+    // The signal names the file reported last but the total covers all three.
+    expect(handle.progress()).toEqual({
+      file: 'tokenizer.json',
+      progress: 50,
+      loadedBytes: 45,
+      totalBytes: 90,
+      overall: { progress: 31, loadedBytes: 155, totalBytes: 500, files: 3, filesDone: 1 },
+    });
+    cb({ status: 'ready' }); // no file: ignored
+    expect(handle.progress()?.file).toBe('tokenizer.json');
+  });
+
+  it('exposes a failed run in runError and clears it on the next run', async () => {
+    let fail = true;
+    const { factory } = mockFactory(async () => {
+      if (fail) throw new Error('bad input');
+      return ['ok'];
+    });
+    const handle = handleWith(factory);
+    await expect(handle.run('x')).rejects.toThrow('bad input');
+    expect((handle.runError() as Error).message).toBe('bad input');
+    expect(handle.error()).toBeNull();
+    expect(handle.status()).toBe('ready');
+    fail = false;
+    await handle.run('y');
+    expect(handle.runError()).toBeNull();
   });
 
   it('forwards device/dtype with request overriding global config', async () => {
@@ -365,6 +418,23 @@ describe('ModelProgressComponent', () => {
     expect(el.querySelector('.nt-track')).toBeNull();
     expect(el.querySelector('.nt-error')).not.toBeNull();
     expect(el.textContent).toContain('Failed to load model');
+  });
+
+  it('drives the bar with the overall percentage when the handle reports it', () => {
+    const fixture = TestBed.createComponent(ModelProgressComponent);
+    fixture.componentRef.setInput('status', 'loading');
+    fixture.componentRef.setInput('progress', {
+      file: 'onnx/model.onnx',
+      progress: 90,
+      loadedBytes: 90,
+      totalBytes: 100,
+      overall: { progress: 30, loadedBytes: 300, totalBytes: 1000, files: 4, filesDone: 1 },
+    });
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.nt-pct')?.textContent).toContain('30%');
+    expect(el.querySelector('.nt-files')?.textContent).toContain('1/4 files');
+    expect((el.querySelector('.nt-fill') as HTMLElement).style.width).toBe('30%');
   });
 
   it('honors custom labels', () => {

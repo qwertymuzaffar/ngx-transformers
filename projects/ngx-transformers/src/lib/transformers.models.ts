@@ -9,6 +9,24 @@ export interface ModelProgress {
   progress: number;
   loadedBytes: number;
   totalBytes: number;
+  /** Progress over every file of the model seen so far; absent when unknown. */
+  overall?: OverallProgress;
+}
+
+/**
+ * Download progress summed over the files of a model seen so far. A model
+ * is several files (config, tokenizer, weights) fetched in parallel; this is
+ * the steady number to put on a progress bar.
+ */
+export interface OverallProgress {
+  /** 0-100 over the bytes of every file with a known size. */
+  progress: number;
+  loadedBytes: number;
+  totalBytes: number;
+  /** Files seen so far. */
+  files: number;
+  /** Files fully downloaded. */
+  filesDone: number;
 }
 
 export type TransformersDevice = 'wasm' | 'webgpu' | 'auto';
@@ -107,3 +125,4 @@ export interface TranslatorOptions extends Partial<Omit<PipelineRequest, 'task'>
   /** Default target language for translate(). */
   to?: string;
 }
+
