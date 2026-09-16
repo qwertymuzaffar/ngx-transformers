@@ -32,19 +32,20 @@ Transitions: `idle → loading → ready ⇄ busy`, plus `loading → error → 
 | Signal | Type | Notes |
 | --- | --- | --- |
 | `status` | `PipelineStatus` | The lifecycle state above. |
-| `progress` | `ModelProgress \| null` | The file currently downloading: `file`, `progress` (0 to 100), `loadedBytes`, `totalBytes`. `null` outside of loading. |
+| `progress` | `ModelProgress \| null` | The file reported last (`file`, `progress`, `loadedBytes`, `totalBytes`) plus `overall`, the same numbers summed over every file of the model once the weights file is known. `null` outside of loading. |
 | `error` | `unknown` | The last load error, cleared when a load starts. |
+| `runError` | `unknown` | The error of the most recently started run, if it failed; cleared when a run starts. A superseded run that fails later does not overwrite it. |
 | `ready` | `boolean` (computed) | `status` is `ready` or `busy`: the model can be used. |
 | `busy` | `boolean` (computed) | `status` is `busy` or `loading`: disable the button. |
 
 All of them are plain Angular signals, so they work with `OnPush` components, zoneless apps, `computed()` and `effect()`.
 
-Transformers.js downloads a model's files in parallel (config, tokenizer, ONNX weights); `progress` follows whichever file reported last, so expect it to switch between files while loading.
+Transformers.js downloads a model's files in parallel (config, tokenizer, ONNX weights). `progress.file` follows whichever file reported last, while `progress.overall` sums the bytes of every file seen so far. It fetches the small files before it starts the weights, so `overall` is withheld until a weights file has been seen; otherwise the bar would read 100% and collapse. The progress component drives its bar with `overall` when present and with the current file before that.
 
 ## Methods
 
 - `load()`: downloads and initialises the model. Idempotent and retryable.
-- `run(input, options?)`: loads if needed, then runs the pipeline. Wrappers expose typed methods (`classify`, `embed`, `translate`, `transcribe`) that call it.
+- `run(input, options?)`: loads if needed, then runs the pipeline. Wrappers expose typed methods (`classify`, `embed`, `translate`, `transcribe`, `generate`) that call it. Every one of them accepts a `signal` (an `AbortSignal`): a run whose signal has already fired rejects with an `AbortError` before it starts. A model run cannot be interrupted once started, but a superseded run that was still waiting for the model to load is skipped instead of queued.
 - `dispose()`: releases the model and returns to `idle`. The handle can be loaded again later.
 - `destroy()`: `dispose()` for good; later calls reject. This is what the component's `DestroyRef` triggers.
 
@@ -56,11 +57,11 @@ Call `dispose()` yourself to free memory early, for example after a one-off job,
 
 ## Concurrency
 
-Several `run()` calls can overlap; Transformers.js queues them on the runtime. The status stays `busy` until the last one finishes. `load()` called from several places at once starts one download and shares it.
+Several `run()` calls can overlap; Transformers.js queues them on the runtime. The status stays `busy` until the last one finishes, and `runError` belongs to the most recently started run. `load()` called from several places at once starts one download and shares it. To avoid the queue when inputs change quickly, pass the abort signal as described above; [`inferenceResource()`](./reactive-inference) hands you one.
 
 ## Where it runs
 
-Inference happens on the main thread through Transformers.js. The default models return in tens to hundreds of milliseconds; Whisper and translation can take a few seconds per call on WebAssembly, during which the page is less responsive. WebGPU helps a lot where available; see [Device selection](./configuration#device-selection).
+Inference happens on the main thread by default. The default models return in tens to hundreds of milliseconds; Whisper, translation and text generation can take seconds per call on WebAssembly, during which the page is less responsive. Two remedies: [Web Workers](./web-workers) move every pipeline off the main thread with one provider, and WebGPU is several times faster where available, see [Device selection](./configuration#device-selection).
 
 ## Server-side rendering
 

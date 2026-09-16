@@ -3,6 +3,7 @@ import { detectDevice } from './device-detection';
 import type {
   ModelProgress,
   NgxTransformersConfig,
+  OverallProgress,
   PipelineRequest,
   PipelineStatus,
   TransformersDevice,
@@ -26,6 +27,12 @@ interface RawProgressEvent {
 /** A pipeline callable with the positional extras some tasks take after the input. */
 type Runnable = (...args: unknown[]) => Promise<unknown>;
 
+interface FileProgress {
+  loaded: number;
+  total: number;
+  done: boolean;
+}
+
 /**
  * One load-to-dispose span of a handle. dispose() swaps in a fresh session,
  * so async work still holding the old one knows it was cancelled and keeps
@@ -36,9 +43,11 @@ interface Session {
   loading: Promise<void> | null;
   /** Runs executing against this session's pipe. */
   inFlight: number;
+  /** Per-file download state of the current load attempt, by file name. */
+  files: Map<string, FileProgress>;
 }
 
-const newSession = (): Session => ({ pipe: null, loading: null, inFlight: 0 });
+const newSession = (): Session => ({ pipe: null, loading: null, inFlight: 0, files: new Map() });
 
 /**
  * A lazily-loaded Transformers.js pipeline wrapped in signals.
@@ -50,15 +59,20 @@ const newSession = (): Session => ({ pipe: null, loading: null, inFlight: 0 });
 export class PipelineHandle<TIn = unknown, TOut = unknown> {
   /** idle -> loading -> ready <-> busy; error only on load failure. */
   readonly status = signal<PipelineStatus>('idle');
-  /** Download progress for the file currently transferring, else null. */
+  /** Download progress: the file reported last, plus the total over all files. */
   readonly progress = signal<ModelProgress | null>(null);
+  /** The last load error; cleared when a load starts. */
   readonly error = signal<unknown>(null);
+  /** The error of the most recently started run, if it failed; cleared when a run starts. */
+  readonly runError = signal<unknown>(null);
   /** True once the model is usable (including while a run is in flight). */
   readonly ready = computed(() => this.status() === 'ready' || this.status() === 'busy');
   readonly busy = computed(() => this.status() === 'busy' || this.status() === 'loading');
 
   private session = newSession();
   private destroyed = false;
+  /** Counts runs so only the most recently started one writes runError. */
+  private runSequence = 0;
 
   constructor(
     private readonly request: PipelineRequest,
@@ -77,7 +91,12 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
     return session.loading;
   }
 
-  /** Runs the pipeline, loading the model first if needed. */
+  /**
+   * Runs the pipeline, loading the model first if needed. Besides the
+   * pipeline's own options, `runOptions.signal` (an AbortSignal) makes the
+   * run reject before it starts when the signal has already fired, which
+   * spares superseded runs the inference (see inferenceResource()).
+   */
   run(input: TIn, runOptions?: Record<string, unknown>): Promise<TOut> {
     return this.runWith(input, runOptions);
   }
@@ -88,16 +107,25 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
    * classification takes (text, candidateLabels, options).
    */
   protected async runWith(input: TIn, ...extraArgs: unknown[]): Promise<TOut> {
+    const { args, signal } = takeSignal(extraArgs);
     await this.load();
+    // The model cannot be interrupted, but a run nobody wants any more
+    // (a newer input superseded it while the model loaded) need not start.
+    if (signal?.aborted) throw abortError();
     const session = this.session;
     const pipe = session.pipe;
     if (!pipe) {
       throw new Error('PipelineHandle: disposed before the model finished loading.');
     }
+    const sequence = ++this.runSequence;
     session.inFlight++;
     this.status.set('busy');
+    this.runError.set(null);
     try {
-      return (await (pipe as Runnable)(input, ...extraArgs)) as TOut;
+      return (await (pipe as Runnable)(input, ...args)) as TOut;
+    } catch (err) {
+      if (this.session === session && sequence === this.runSequence) this.runError.set(err);
+      throw err;
     } finally {
       // Back to ready once the last overlapping run finishes - a failed run
       // leaves the model intact. A run that outlived dispose() settles its
@@ -134,6 +162,9 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
   private async doLoad(session: Session): Promise<void> {
     this.status.set('loading');
     this.error.set(null);
+    // A retry after a failed attempt starts its bookkeeping from scratch.
+    session.files = new Map();
+    this.progress.set(null);
     const options: Record<string, unknown> = {
       ...this.config.pipelineOptions,
       ...this.request.options,
@@ -159,6 +190,7 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
     } catch (err) {
       // A cancelled load is not an error - dispose() already reset the handle.
       if (this.session !== session) return;
+      this.progress.set(null);
       this.error.set(err);
       this.status.set('error');
       throw err;
@@ -175,17 +207,81 @@ export class PipelineHandle<TIn = unknown, TOut = unknown> {
     return this.config.autoDevice ? detectDevice() : configured;
   }
 
+  /**
+   * Transformers.js reports each file on its own (initiate, download,
+   * progress, done). The session records every file it hears about; the
+   * signal is published on progress and done events only, so a file that
+   * has not transferred a byte never replaces the one that is moving.
+   */
   private onProgress(event: RawProgressEvent, session: Session): void {
     // Events from a load that dispose() cancelled must not resurrect the bar.
-    if (this.session !== session) return;
-    if (event.status !== 'progress' || !event.file) return;
+    if (this.session !== session || !event.file) return;
+    const file = session.files.get(event.file) ?? { loaded: 0, total: 0, done: false };
+    session.files.set(event.file, file);
+    switch (event.status) {
+      case 'progress':
+        file.loaded = event.loaded ?? file.loaded;
+        file.total = event.total ?? file.total;
+        break;
+      case 'done':
+        file.done = true;
+        if (file.total > 0) file.loaded = file.total;
+        break;
+      default:
+        return; // initiate / download: recorded, not published
+    }
+    const percent = event.status === 'done' ? 100 : Math.round(event.progress ?? 0);
+    const overall = overallOf(session.files);
     this.progress.set({
       file: event.file,
-      progress: Math.round(event.progress ?? 0),
-      loadedBytes: event.loaded ?? 0,
-      totalBytes: event.total ?? 0,
+      progress: percent,
+      loadedBytes: file.loaded,
+      totalBytes: file.total,
+      ...(overall ? { overall } : {}),
     });
   }
+}
+
+/**
+ * The total over the files seen so far. Transformers.js fetches the small
+ * files (config, tokenizer) before it starts the weights, so a total
+ * computed before the weights are known would read 100% and then collapse;
+ * it is therefore withheld until a weights file has been seen.
+ */
+function overallOf(files: Map<string, FileProgress>): OverallProgress | undefined {
+  let weightsSeen = false;
+  let loadedBytes = 0;
+  let totalBytes = 0;
+  let filesDone = 0;
+  for (const [name, file] of files) {
+    if (name.includes('.onnx')) weightsSeen = true;
+    if (file.total > 0) {
+      loadedBytes += Math.min(file.loaded, file.total);
+      totalBytes += file.total;
+    }
+    if (file.done) filesDone++;
+  }
+  if (!weightsSeen) return undefined;
+  return {
+    progress: totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : 0,
+    loadedBytes,
+    totalBytes,
+    files: files.size,
+    filesDone,
+  };
+}
+
+/** Pulls `signal` out of a call's trailing options object. */
+function takeSignal(args: unknown[]): { args: unknown[]; signal?: AbortSignal } {
+  const last = args[args.length - 1];
+  if (typeof last !== 'object' || last === null || Array.isArray(last)) return { args };
+  const { signal, ...rest } = last as { signal?: unknown } & Record<string, unknown>;
+  if (!(signal instanceof AbortSignal)) return { args };
+  return { args: [...args.slice(0, -1), rest], signal };
+}
+
+function abortError(): Error {
+  return new DOMException('PipelineHandle: the run was aborted before it started.', 'AbortError');
 }
 
 function destroyedError(): Error {

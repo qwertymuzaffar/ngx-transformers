@@ -5,7 +5,7 @@
 [![CI](https://github.com/qwertymuzaffar/ngx-transformers/actions/workflows/ci.yml/badge.svg)](https://github.com/qwertymuzaffar/ngx-transformers/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Run Hugging Face [Transformers.js](https://github.com/huggingface/transformers.js) models in Angular - **on-device ML with a signals API**. Text classification, zero-shot classification, sentence embeddings, semantic search, translation, and Whisper speech-to-text that execute entirely in the browser: no server, no API key, works offline once the model is cached.
+Run Hugging Face [Transformers.js](https://github.com/huggingface/transformers.js) models in Angular - **on-device ML with a signals API**. Text classification, zero-shot classification, sentence embeddings, semantic search, translation, Whisper speech-to-text and small LLMs with streaming, executed entirely in the browser (in a Web Worker if you like): no server, no API key, works offline once the model is cached.
 
 **[Documentation](https://qwertymuzaffar.github.io/ngx-transformers/)** · [Demo app](https://qwertymuzaffar.github.io/ngx-transformers/demo/) · [Storybook](https://qwertymuzaffar.github.io/ngx-transformers/storybook/) - the demos load real models in your browser.
 
@@ -134,6 +134,54 @@ readonly translator = createTranslator({ model: 'Xenova/nllb-200-distilled-600M'
 await this.translator.translate(text, { from: 'eng_Latn', to: 'tgk_Cyrl' }); // src_lang / tgt_lang forwarded
 ```
 
+## Text generation
+
+A small language model, streamed token by token:
+
+```ts
+import { createTextGenerator } from 'ngx-transformers';
+
+readonly generator = createTextGenerator(); // SmolLM2-135M-Instruct, ~100 MB q4
+
+const reply = await this.generator.generate(
+  [{ role: 'user', content: 'Explain signals in Angular in two sentences.' }],
+  { maxNewTokens: 120, onToken: (piece) => console.log(piece) },
+);
+// generator.output() holds the text generated so far while the model runs
+```
+
+## Reactive inference
+
+`inferenceResource()` runs a handle whenever an input signal changes, as an Angular resource with debounce and latest-wins:
+
+```ts
+readonly text = signal('');
+readonly sentiment = inferenceResource({
+  input: () => this.text().trim() || undefined, // undefined: idle
+  run: (text) => this.classifier.classify(text),
+  debounceMs: 300,
+});
+// template: sentiment.value(), sentiment.isLoading(), sentiment.error()
+```
+
+## Web Worker
+
+One provider moves every pipeline off the main thread; handles and signals work unchanged:
+
+```ts
+// transformers.worker.ts
+/// <reference lib="webworker" />
+import { runTransformersWorker } from 'ngx-transformers/worker';
+runTransformersWorker();
+
+// app.config.ts
+provideTransformersWorker(
+  () => new Worker(new URL('./transformers.worker', import.meta.url), { type: 'module' }),
+);
+```
+
+`ngx-transformers/worker` has no Angular dependency, so the worker chunk stays tiny; `@huggingface/transformers` loads inside the worker only.
+
 ## Any pipeline
 
 `createPipeline()` exposes the full Transformers.js task surface with the same signal lifecycle:
@@ -189,6 +237,9 @@ bootstrapApplication(App, {
 | `createSpeechRecognizer(options?)` | `SpeechRecognizer` - `transcribe(audio, options?)` with timestamps |
 | `createZeroShotClassifier(options?)` | `ZeroShotClassifier` - `classify(text, labels, { multiLabel?, hypothesisTemplate? })` |
 | `createTranslator(options?)` | `Translator` - `translate(text, { from?, to? })`, one model per pair, `handleFor(pair)` |
+| `createTextGenerator(options?)` | `TextGenerator` - `generate(prompt, { maxNewTokens?, onToken?, ... })`, streamed into `output` |
+| `inferenceResource({ input, run, debounceMs? })` | An Angular resource that re-runs a handle when an input signal changes |
+| `provideTransformersWorker(createWorker)` | Run every pipeline in a Web Worker (`ngx-transformers/worker` runs the worker side) |
 | `createMicRecorder(deps?)` | `MicRecorder` - mic capture with `recording`/`seconds`/`error` signals |
 | `cosineSimilarity(a, b)` / `decodeAudio(blob)` | Standalone helpers |
 | `PIPELINE_FACTORY` / `createDefaultPipelineFactory()` | Swap or wrap how pipelines are created |
@@ -200,8 +251,9 @@ All `create*` functions must run in an injection context (field initializer, con
 | Signal | Type | Meaning |
 |---|---|---|
 | `status` | `'idle' \| 'loading' \| 'ready' \| 'busy' \| 'error'` | Lifecycle; `error` only from a failed load, retryable |
-| `progress` | `ModelProgress \| null` | Download progress: `file`, `progress` (0-100), bytes |
+| `progress` | `ModelProgress \| null` | Download progress: the file reported last plus `overall` over every file of the model |
 | `error` | `unknown` | The load error, if any |
+| `runError` | `unknown` | The error of the most recent run, if it failed |
 | `ready` / `busy` | `boolean` (computed) | Convenience for buttons and spinners |
 
 ### `<ngx-model-progress>`
@@ -217,6 +269,7 @@ Status line + download bar for any handle. Inputs: `status` (required), `progres
 | `createSpeechRecognizer` | [onnx-community/whisper-tiny.en](https://huggingface.co/onnx-community/whisper-tiny.en) | ~41 MB (q4) | Apache-2.0 |
 | `createZeroShotClassifier` | [Xenova/mobilebert-uncased-mnli](https://huggingface.co/Xenova/mobilebert-uncased-mnli) | ~26 MB | unlisted on the Hub (base MobileBERT: Apache-2.0) |
 | `createTranslator` | [Xenova/opus-mt-{from}-{to}](https://huggingface.co/models?search=Xenova/opus-mt) | ~105 MB per pair | varies per pair (Apache-2.0 or CC-BY-4.0) |
+| `createTextGenerator` | [HuggingFaceTB/SmolLM2-135M-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct) | ~100 MB (q4) | Apache-2.0 |
 
 Swap any compatible checkpoint via `{ model: '...' }`. Check the license of the model you ship.
 

@@ -9,10 +9,29 @@ export interface ModelProgress {
   progress: number;
   loadedBytes: number;
   totalBytes: number;
+  /** Progress over every file of the model seen so far; absent when unknown. */
+  overall?: OverallProgress;
+}
+
+/**
+ * Download progress summed over the files of a model seen so far. A model
+ * is several files (config, tokenizer, weights) fetched in parallel; this is
+ * the steady number to put on a progress bar.
+ */
+export interface OverallProgress {
+  /** 0-100 over the bytes of every file with a known size. */
+  progress: number;
+  loadedBytes: number;
+  totalBytes: number;
+  /** Files seen so far. */
+  files: number;
+  /** Files fully downloaded. */
+  filesDone: number;
 }
 
 export type TransformersDevice = 'wasm' | 'webgpu' | 'auto';
-export type TransformersDtype = 'fp32' | 'fp16' | 'q8' | 'q4';
+/** Weight formats Transformers.js can load; a checkpoint must ship the one you ask for. */
+export type TransformersDtype = 'fp32' | 'fp16' | 'q8' | 'int8' | 'uint8' | 'q4' | 'bnb4' | 'q4f16';
 
 /** Global defaults applied to every pipeline; see provideTransformers(). */
 export interface NgxTransformersConfig {
@@ -40,6 +59,15 @@ export interface PipelineRequest {
   device?: TransformersDevice;
   dtype?: TransformersDtype;
   options?: Record<string, unknown>;
+}
+
+/**
+ * Options every run accepts. `signal` makes a run reject with an AbortError
+ * before it starts when the signal has already fired; a model run cannot be
+ * interrupted once started, but a superseded run need not begin.
+ */
+export interface RunOptions {
+  signal?: AbortSignal;
 }
 
 export interface ClassificationResult {
@@ -70,7 +98,7 @@ export interface Transcription {
   chunks?: TranscriptionChunk[];
 }
 
-export interface TranscribeOptions {
+export interface TranscribeOptions extends RunOptions {
   /** true for segment timestamps, 'word' for word-level. */
   returnTimestamps?: boolean | 'word';
   /** Split audio longer than ~30 s into chunks of this many seconds. */
@@ -84,7 +112,7 @@ export interface TranscribeOptions {
 }
 
 /** Options for ZeroShotClassifier.classify(). */
-export interface ZeroShotOptions {
+export interface ZeroShotOptions extends RunOptions {
   /** Score every label on its own (several can be high) instead of picking one. */
   multiLabel?: boolean;
   /** NLI hypothesis with a {} placeholder for the label; default "This example is {}.". */
@@ -95,7 +123,7 @@ export interface ZeroShotOptions {
  * Language pair for one translate() call. Codes follow the checkpoint:
  * ISO 639-1 for opus-mt ("en", "ru"), FLORES-200 for NLLB ("eng_Latn").
  */
-export interface TranslateOptions {
+export interface TranslateOptions extends RunOptions {
   from?: string;
   to?: string;
 }
@@ -106,4 +134,24 @@ export interface TranslatorOptions extends Partial<Omit<PipelineRequest, 'task'>
   from?: string;
   /** Default target language for translate(). */
   to?: string;
+}
+
+/** One turn of a chat prompt for TextGenerator. */
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+/** Options for TextGenerator.generate(). */
+export interface GenerateOptions extends RunOptions {
+  /** Upper bound on generated tokens; default 256. */
+  maxNewTokens?: number;
+  /** Sample instead of greedy decoding; set with temperature / topP / topK. */
+  doSample?: boolean;
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+  repetitionPenalty?: number;
+  /** Called with each piece of text as it is generated. */
+  onToken?: (text: string) => void;
 }

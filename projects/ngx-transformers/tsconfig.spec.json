@@ -4,6 +4,9 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "../../out-tsc/spec",
+    "paths": {
+      "ngx-transformers/worker": ["./worker/src/public-api.ts"]
+    },
     "types": [
       "vitest/globals"
     ]

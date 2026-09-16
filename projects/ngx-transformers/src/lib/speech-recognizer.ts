@@ -79,6 +79,7 @@ export class SpeechRecognizer extends PipelineHandle<
     if (options.strideLengthS !== undefined) runOptions['stride_length_s'] = options.strideLengthS;
     if (options.language !== undefined) runOptions['language'] = options.language;
     if (options.task !== undefined) runOptions['task'] = options.task;
+    if (options.signal !== undefined) runOptions['signal'] = options.signal;
 
     const raw = await this.run(input, runOptions);
     const first = (Array.isArray(raw) ? raw[0] : raw) ?? {};

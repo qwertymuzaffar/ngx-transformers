@@ -133,9 +133,171 @@ describe('PipelineHandle', () => {
     expect(typeof cb).toBe('function');
     cb({ status: 'initiate', file: 'model.onnx' });
     cb({ status: 'progress', file: 'model.onnx', progress: 41.7, loaded: 41, total: 100 });
+    expect(seen.filter(Boolean).at(-1)).toEqual({
+      file: 'model.onnx',
+      progress: 42,
+      loadedBytes: 41,
+      totalBytes: 100,
+      overall: { progress: 41, loadedBytes: 41, totalBytes: 100, files: 1, filesDone: 0 },
+    });
     cb({ status: 'done', file: 'model.onnx' });
-    const last = seen.filter(Boolean).at(-1)!;
-    expect(last).toEqual({ file: 'model.onnx', progress: 42, loadedBytes: 41, totalBytes: 100 });
+    expect(seen.filter(Boolean).at(-1)).toEqual({
+      file: 'model.onnx',
+      progress: 100,
+      loadedBytes: 100,
+      totalBytes: 100,
+      overall: { progress: 100, loadedBytes: 100, totalBytes: 100, files: 1, filesDone: 1 },
+    });
+  });
+
+  it('sums progress over every file the model downloads in parallel', async () => {
+    let capturedOptions: Record<string, unknown> = {};
+    const factory: PipelineFactory = async (_task, _model, options) => {
+      capturedOptions = options;
+      return (async () => []) as PipelineLike;
+    };
+    const handle = handleWith(factory);
+    await handle.load();
+    const cb = capturedOptions['progress_callback'] as (e: unknown) => void;
+    cb({ status: 'progress', file: 'config.json', progress: 100, loaded: 10, total: 10 });
+    cb({ status: 'done', file: 'config.json' });
+    cb({ status: 'progress', file: 'onnx/model.onnx', progress: 25, loaded: 100, total: 400 });
+    cb({ status: 'progress', file: 'tokenizer.json', progress: 50, loaded: 45, total: 90 });
+    // The signal names the file reported last but the total covers all three.
+    expect(handle.progress()).toEqual({
+      file: 'tokenizer.json',
+      progress: 50,
+      loadedBytes: 45,
+      totalBytes: 90,
+      overall: { progress: 31, loadedBytes: 155, totalBytes: 500, files: 3, filesDone: 1 },
+    });
+    cb({ status: 'ready' }); // no file: ignored
+    expect(handle.progress()?.file).toBe('tokenizer.json');
+  });
+
+  it('withholds the total until the weights file is known, and ignores initiate/download', async () => {
+    let capturedOptions: Record<string, unknown> = {};
+    const factory: PipelineFactory = async (_task, _model, options) => {
+      capturedOptions = options;
+      return (async () => []) as PipelineLike;
+    };
+    const handle = handleWith(factory);
+    await handle.load();
+    const cb = capturedOptions['progress_callback'] as (e: unknown) => void;
+    cb({ status: 'progress', file: 'config.json', progress: 100, loaded: 10, total: 10 });
+    cb({ status: 'done', file: 'config.json' });
+    // the small files alone would read 100%: no overall yet
+    expect(handle.progress()).toEqual({
+      file: 'config.json',
+      progress: 100,
+      loadedBytes: 10,
+      totalBytes: 10,
+    });
+    cb({ status: 'initiate', file: 'onnx/model_quantized.onnx' });
+    cb({ status: 'download', file: 'onnx/model_quantized.onnx' });
+    // recorded, but a file that has not moved does not replace the signal
+    expect(handle.progress()?.file).toBe('config.json');
+    cb({
+      status: 'progress',
+      file: 'onnx/model_quantized.onnx',
+      progress: 10,
+      loaded: 100,
+      total: 1000,
+    });
+    expect(handle.progress()?.overall).toEqual({
+      progress: 11,
+      loadedBytes: 110,
+      totalBytes: 1010,
+      files: 2,
+      filesDone: 1,
+    });
+  });
+
+  it('a retried load starts its progress from scratch', async () => {
+    let attempt = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const factory: PipelineFactory = async (_task, _model, options) => {
+      const cb = options['progress_callback'] as (e: unknown) => void;
+      if (++attempt === 1) {
+        cb({ status: 'progress', file: 'config.json', progress: 100, loaded: 10, total: 10 });
+        cb({ status: 'done', file: 'config.json' });
+        cb({ status: 'progress', file: 'onnx/model.onnx', progress: 80, loaded: 80, total: 100 });
+        throw new Error('network');
+      }
+      cb({ status: 'progress', file: 'onnx/model.onnx', progress: 10, loaded: 10, total: 100 });
+      await gate; // keep the retry in flight so its progress can be inspected
+      return (async () => []) as PipelineLike;
+    };
+    const handle = handleWith(factory);
+    await expect(handle.load()).rejects.toThrow('network');
+    expect(handle.status()).toBe('error');
+    expect(handle.progress()).toBeNull();
+    const loading = handle.load();
+    await vi.waitFor(() => expect(handle.progress()).not.toBeNull());
+    // the failed attempt's config.json and 80 bytes are gone
+    expect(handle.progress()?.overall).toEqual({
+      progress: 10,
+      loadedBytes: 10,
+      totalBytes: 100,
+      files: 1,
+      filesDone: 0,
+    });
+    release();
+    await loading;
+    expect(handle.status()).toBe('ready');
+  });
+
+  it('only the most recently started run writes runError', async () => {
+    const settle: ((outcome: 'ok' | 'fail') => void)[] = [];
+    const { factory } = mockFactory(
+      () =>
+        new Promise<string>((resolve, reject) =>
+          settle.push((outcome) => (outcome === 'ok' ? resolve('ok') : reject(new Error('boom')))),
+        ),
+    );
+    const handle = handleWith(factory);
+    const first = handle.run('a');
+    const second = handle.run('b');
+    await vi.waitFor(() => expect(settle).toHaveLength(2));
+    settle[0]('fail'); // the superseded run fails
+    await expect(first).rejects.toThrow('boom');
+    expect(handle.runError()).toBeNull();
+    settle[1]('ok');
+    await second;
+    expect(handle.runError()).toBeNull();
+  });
+
+  it('a run whose signal already fired rejects with AbortError instead of running', async () => {
+    const mocks = mockFactory();
+    const handle = handleWith(mocks.factory);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(handle.run('x', { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(mocks.runCalls).toHaveLength(0);
+    expect(handle.status()).toBe('ready'); // the model loaded and is intact
+    // a live signal is stripped from the pipeline options and the run proceeds
+    const live = new AbortController();
+    await handle.run('y', { signal: live.signal, top_k: 2 });
+    expect(mocks.runCalls[0].options).toEqual({ top_k: 2 });
+  });
+
+  it('exposes a failed run in runError and clears it on the next run', async () => {
+    let fail = true;
+    const { factory } = mockFactory(async () => {
+      if (fail) throw new Error('bad input');
+      return ['ok'];
+    });
+    const handle = handleWith(factory);
+    await expect(handle.run('x')).rejects.toThrow('bad input');
+    expect((handle.runError() as Error).message).toBe('bad input');
+    expect(handle.error()).toBeNull();
+    expect(handle.status()).toBe('ready');
+    fail = false;
+    await handle.run('y');
+    expect(handle.runError()).toBeNull();
   });
 
   it('forwards device/dtype with request overriding global config', async () => {
@@ -241,6 +403,21 @@ describe('TextClassifier', () => {
     ]);
     const out = await classifier.classify('great stuff', 2);
     expect(out.map((r) => r.label)).toEqual(['POSITIVE', 'NEGATIVE']);
+  });
+
+  it('classify() forwards an abort signal to the run', async () => {
+    const { factory, runCalls } = mockFactory(async () => [{ label: 'POSITIVE', score: 1 }]);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }],
+    });
+    const classifier = TestBed.runInInjectionContext(() => createTextClassifier());
+    const controller = new AbortController();
+    controller.abort();
+    await expect(classifier.classify('x', 1, { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    expect(runCalls).toHaveLength(0);
   });
 
   it('classify() unwraps nested batch results', async () => {
@@ -365,6 +542,23 @@ describe('ModelProgressComponent', () => {
     expect(el.querySelector('.nt-track')).toBeNull();
     expect(el.querySelector('.nt-error')).not.toBeNull();
     expect(el.textContent).toContain('Failed to load model');
+  });
+
+  it('drives the bar with the overall percentage when the handle reports it', () => {
+    const fixture = TestBed.createComponent(ModelProgressComponent);
+    fixture.componentRef.setInput('status', 'loading');
+    fixture.componentRef.setInput('progress', {
+      file: 'onnx/model.onnx',
+      progress: 90,
+      loadedBytes: 90,
+      totalBytes: 100,
+      overall: { progress: 30, loadedBytes: 300, totalBytes: 1000, files: 4, filesDone: 1 },
+    });
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.nt-pct')?.textContent).toContain('30%');
+    expect(el.querySelector('.nt-files')?.textContent).toContain('1/4 files');
+    expect((el.querySelector('.nt-fill') as HTMLElement).style.width).toBe('30%');
   });
 
   it('honors custom labels', () => {

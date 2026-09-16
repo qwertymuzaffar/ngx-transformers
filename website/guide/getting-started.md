@@ -64,10 +64,11 @@ Every task has a `create*()` function that returns a handle with the same lifecy
 | `createTextEmbedder()` | `TextEmbedder` | `embed()`, `similarity()`, `rank()` |
 | `createTranslator()` | `Translator` | `translate(text, { from?, to? })` |
 | `createSpeechRecognizer()` | `SpeechRecognizer` | `transcribe(audio, options?)` |
+| `createTextGenerator()` | `TextGenerator` | `generate(prompt, options?)`, streamed into `output` |
 | `createMicRecorder()` | `MicRecorder` | `start()`, `stop()` |
 | `createPipeline()` | `PipelineHandle` | `run(input, options?)` for any other task |
 
-They must run in an [injection context](https://angular.dev/guide/di/dependency-injection-context): a field initializer, a constructor, or `runInInjectionContext()`. Each takes an options object to change the model, device or dtype for that handle, for example `createTextClassifier({ model: 'Xenova/bert-base-multilingual-uncased-sentiment' })`.
+`inferenceResource()` wraps any of them in an Angular resource that re-runs when an input signal changes; see [Reactive inference](./reactive-inference). They must run in an [injection context](https://angular.dev/guide/di/dependency-injection-context): a field initializer, a constructor, or `runInInjectionContext()`. Each takes an options object to change the model, device or dtype for that handle, for example `createTextClassifier({ model: 'Xenova/bert-base-multilingual-uncased-sentiment' })`.
 
 ## Showing progress
 
@@ -77,7 +78,7 @@ They must run in an [injection context](https://angular.dev/guide/di/dependency-
 <ngx-model-progress [status]="handle.status()" [progress]="handle.progress()" />
 ```
 
-It shows the file being downloaded and the percentage while loading, then the ready, busy or error state. Override the text through the `labels` input and the colors through the `--nt-accent`, `--nt-ink`, `--nt-muted` and `--nt-track` custom properties. Or read the signals and render your own; see [Concepts](./concepts#signals).
+It shows the file being downloaded, how many of the model's files are done, and the percentage over all of them while loading, then the ready, busy or error state. Override the text through the `labels` input and the colors through the `--nt-accent`, `--nt-ink`, `--nt-muted` and `--nt-track` custom properties. Or read the signals and render your own; see [Concepts](./concepts#signals).
 
 ## Preloading
 
@@ -95,4 +96,5 @@ ngOnInit() {
 
 - [Concepts](./concepts): the handle lifecycle, signals, disposal and server rendering.
 - [Configuration](./configuration): device and dtype defaults, WebGPU detection, custom pipeline factories.
+- [Web Workers](./web-workers): one provider to run every model off the main thread.
 - One page per task under Tasks in the sidebar.

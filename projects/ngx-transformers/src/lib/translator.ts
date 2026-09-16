@@ -58,6 +58,7 @@ export class Translator {
   readonly status = computed(() => this.active()?.status() ?? 'idle');
   readonly progress = computed(() => this.active()?.progress() ?? null);
   readonly error = computed(() => this.active()?.error() ?? null);
+  readonly runError = computed(() => this.active()?.runError() ?? null);
   readonly ready = computed(() => this.active()?.ready() ?? false);
   readonly busy = computed(() => this.active()?.busy() ?? false);
 
@@ -75,7 +76,7 @@ export class Translator {
   /** Translates one text; the pair defaults to the one given at creation. */
   async translate(text: string, pair: TranslateOptions = {}): Promise<string> {
     const handle = this.handleFor(pair);
-    const raw = await handle.run(text, this.languageOptions(pair));
+    const raw = await handle.run(text, { ...this.languageOptions(pair), signal: pair.signal });
     const first = Array.isArray(raw) ? raw[0] : raw;
     return (first?.translation_text ?? '').trim();
   }

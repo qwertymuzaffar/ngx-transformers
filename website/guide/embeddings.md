@@ -39,7 +39,38 @@ export class SearchComponent {
 }
 ```
 
-`rank()` re-embeds the documents on every call, which is fine for a few hundred short texts. For a larger corpus, embed the documents once, keep the vectors, and compare the query against them with `cosineSimilarity()` or a vector store. [browser-rag](https://github.com/qwertymuzaffar/browser-rag) shows a whole retrieval pipeline in the browser built on ngx-transformers.
+`rank()` re-embeds the documents on every call, which is fine for a few hundred short texts. For a larger corpus, embed the documents once and keep the vectors; see the next section.
+
+## Search over a large corpus
+
+For more than a few hundred documents, embed once and keep the vectors in an index. Two zero-dependency packages that run in the browser fit here: [chunklet](https://www.npmjs.com/package/chunklet) splits documents into chunks that keep exact source offsets and heading breadcrumbs, and [minivec](https://www.npmjs.com/package/minivec) is an HNSW vector store with JSON persistence.
+
+```ts
+import { chunkMarkdown } from 'chunklet';
+import { MiniVec } from 'minivec';
+import { createTextEmbedder } from 'ngx-transformers';
+
+readonly embedder = createTextEmbedder(); // 384-dimensional vectors
+readonly index = new MiniVec<{ text: string; headings?: string[] }>({ dim: 384 });
+
+async ingest(markdown: string) {
+  const chunks = chunkMarkdown(markdown, { maxTokens: 256 });
+  const vectors = await this.embedder.embed(chunks.map((chunk) => chunk.text));
+  chunks.forEach((chunk, i) =>
+    this.index.add(`chunk-${chunk.index}`, vectors[i], {
+      text: chunk.text,
+      headings: chunk.meta?.headings,
+    }),
+  );
+}
+
+async search(query: string) {
+  const [vector] = await this.embedder.embed(query);
+  return this.index.search(vector, { k: 5 }); // [{ id, score, meta: { text, headings } }]
+}
+```
+
+`index.toJSON()` snapshots the store, graph included, for IndexedDB; `MiniVec.fromJSON()` restores it without re-embedding. Run the embedder in a [Web Worker](./web-workers) to keep the page responsive while ingesting. [browser-rag](https://github.com/qwertymuzaffar/browser-rag) is the complete pipeline: chunklet, ngx-transformers and minivec, fully in the browser.
 
 ## Other embedding models
 
