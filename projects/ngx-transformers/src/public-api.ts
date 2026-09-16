@@ -15,5 +15,6 @@ export * from './lib/speech-recognizer';
 export * from './lib/zero-shot-classifier';
 export * from './lib/translator';
 export * from './lib/text-generator';
+export * from './lib/inference-resource';
 export * from './lib/mic-recorder';
 export * from './lib/model-progress.component';
