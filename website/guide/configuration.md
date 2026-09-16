@@ -75,7 +75,7 @@ bootstrapApplication(App, {
 });
 ```
 
-The factory receives the merged options, including `progress_callback`, `device` and `dtype`, and returns the pipeline callable: anything with the shape of `PipelineLike`, a function of `(input, options?)` with an optional `dispose()`.
+The factory receives the merged options, including `progress_callback`, `device` and `dtype`, and returns the pipeline callable: anything with the shape of `PipelineLike`, a function of `(input, options?)` with an optional `dispose()`. Two run options are the library's own rather than Transformers.js's: `signal` is consumed by the handle before the factory sees it, and `onToken` (text generation streaming) must be turned into a `TextStreamer` by the factory, which the built-in ones do. A custom factory that returns a raw pipeline should wrap `createDefaultPipelineFactory()`, as above, or streaming silently stops; `TextGenerator` warns once when that happens.
 
 ## Translation checkpoints
 

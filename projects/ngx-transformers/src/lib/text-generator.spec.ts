@@ -84,6 +84,53 @@ describe('TextGenerator', () => {
     expect(runCalls[0].options).toMatchObject({ max_new_tokens: 256, return_full_text: false });
   });
 
+  it('only the latest of two overlapping calls writes output', async () => {
+    const calls: { onToken: (t: string) => void; finish: () => void }[] = [];
+    const factory: PipelineFactory = async () =>
+      (async (_input: unknown, options?: Record<string, unknown>) =>
+        new Promise((resolve) => {
+          const reply = calls.length === 0 ? 'first' : 'second';
+          calls.push({
+            onToken: options?.['onToken'] as (t: string) => void,
+            finish: () => resolve([{ generated_text: reply }]),
+          });
+        })) as PipelineLike;
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{ provide: PIPELINE_FACTORY, useValue: factory }],
+    });
+    const generator = TestBed.runInInjectionContext(() => createTextGenerator());
+    const first = generator.generate('a');
+    const second = generator.generate('b');
+    await vi.waitFor(() => expect(calls).toHaveLength(2));
+    calls[0].onToken('fir');
+    calls[1].onToken('sec');
+    expect(generator.output()).toBe('sec'); // the superseded call's tokens are ignored
+    calls[0].finish();
+    expect(await first).toBe('first');
+    expect(generator.output()).toBe('sec');
+    calls[1].onToken('ond');
+    calls[1].finish();
+    expect(await second).toBe('second');
+    expect(generator.output()).toBe('second');
+  });
+
+  it('warns once per generator when a reply arrives without streamed tokens', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { generator } = generatorWith([{ generated_text: 'no streaming here' }]);
+      await generator.generate('a');
+      await generator.generate('b');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toMatch(/PIPELINE_FACTORY/);
+      const streaming = generatorWith([{ generated_text: 'hi' }], ['hi']);
+      await streaming.generator.generate('c');
+      expect(warn).toHaveBeenCalledTimes(1); // tokens arrived: nothing to warn about
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('tolerates bare and empty output and resets output per call', async () => {
     const { generator } = generatorWith({ generated_text: 'one' }, ['one']);
     expect(await generator.generate('a')).toBe('one');

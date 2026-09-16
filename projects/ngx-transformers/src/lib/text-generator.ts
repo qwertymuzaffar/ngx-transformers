@@ -21,8 +21,11 @@ export class TextGenerator extends PipelineHandle<
   string | ChatMessage[],
   RawGeneration | RawGeneration[]
 > {
-  /** The text generated so far by the current generate() call; reset when a call starts. */
+  /** The text generated so far by the latest generate() call; reset when a call starts. */
   readonly output = signal('');
+  /** Only the most recently started call may write output. */
+  private generation = 0;
+  private warnedNoStreaming = false;
 
   /**
    * Generates a reply to a prompt or a chat. Tokens stream into `output`
@@ -40,10 +43,14 @@ export class TextGenerator extends PipelineHandle<
     }
     // A plain prompt would otherwise come back with the prompt in front.
     if (typeof prompt === 'string') runOptions['return_full_text'] = false;
+    if (options.signal !== undefined) runOptions['signal'] = options.signal;
 
+    const generation = ++this.generation;
+    let streamed = 0;
     this.output.set('');
     runOptions['onToken'] = (text: string) => {
-      this.output.update((current) => current + text);
+      streamed++;
+      if (generation === this.generation) this.output.update((current) => current + text);
       options.onToken?.(text);
     };
 
@@ -52,7 +59,16 @@ export class TextGenerator extends PipelineHandle<
     const generated = first?.generated_text;
     const text = Array.isArray(generated) ? (generated.at(-1)?.content ?? '') : (generated ?? '');
     const reply = text.trim();
-    this.output.set(reply);
+    if (generation === this.generation) this.output.set(reply);
+    if (streamed === 0 && reply && !this.warnedNoStreaming) {
+      // Streaming relies on the pipeline factory turning the onToken run
+      // option into a TextStreamer, which the built-in factories do. A
+      // custom factory that returns a raw pipeline drops it silently.
+      this.warnedNoStreaming = true;
+      console.warn(
+        'ngx-transformers: the reply arrived without streamed tokens. A custom PIPELINE_FACTORY must wrap createDefaultPipelineFactory() (or handle the onToken run option) for TextGenerator.output to stream.',
+      );
+    }
     return reply;
   }
 }

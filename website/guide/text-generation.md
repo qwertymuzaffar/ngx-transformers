@@ -38,8 +38,9 @@ While the model runs, `output` holds the text generated so far, so a template ca
 | `temperature`, `topP`, `topK` | model defaults | Sampling parameters. |
 | `repetitionPenalty` | model default | Above 1 discourages repeating tokens. |
 | `onToken` | none | Called with each generated piece of text. |
+| `signal` | none | An `AbortSignal`; a call whose signal has fired before the model is ready rejects instead of running. |
 
-The handle is a `PipelineHandle`, so it has the usual signals plus `output`.
+The handle is a `PipelineHandle`, so it has the usual signals plus `output`. When two calls overlap, only the most recently started one writes `output`; the earlier call still resolves with its own reply. Streaming needs the pipeline factory to honour `onToken`, which the built-in factories do; with a custom factory that returns a raw pipeline the reply arrives whole and the generator warns once, see [Configuration](./configuration#the-pipeline-factory).
 
 ## A chat with memory
 
